@@ -1,0 +1,10 @@
+testrunner
+*.swp
+*.pdf
+*.o
+*.a
+*~
+.cproject
+.project
+.settings
+Makefile.env
