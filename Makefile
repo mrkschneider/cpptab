@@ -1,7 +1,7 @@
 include Makefile.env
-INCLUDEDIRS=./include $(BOOSTDIR)/include $(CIRCBUFDIR)/include $(BUFSCANDIR)/include
-LIBDIRS=$(OUTLIBDIR) $(BOOSTDIR)/lib $(CIRCBUFDIR)/lib $(BUFSCANDIR)/lib 
-LIBNAMES=circbuf bufscan :libboost_regex.a
+INCLUDEDIRS=./include $(BOOSTDIR)/include $(CIRCBUFDIR)/include
+LIBDIRS=$(OUTLIBDIR) $(BOOSTDIR)/lib $(CIRCBUFDIR)/lib
+LIBNAMES=circbuf.opt :libboost_regex.a
 TESTINCLUDEDIRS=$(INCLUDEDIRS) $(CXXTESTDIR)
 OUTLIBDIR=lib
 TESTLIBDIRS=$(LIBDIRS)
@@ -14,7 +14,7 @@ OUTLIB=$(OUTLIBDIR)/lib$(OUTLIBNAME).a
 OUTBIN=main.out
 
 CXX=g++
-CXXFLAGS=-Wall -Wpedantic -std=c++17
+CXXFLAGS=-Wall -Wpedantic -std=c++17 -O3
 LDFLAGS=
 
 OBJDIR=objects

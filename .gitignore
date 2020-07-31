@@ -8,3 +8,4 @@ testrunner
 .project
 .settings
 Makefile.env
+*.out
