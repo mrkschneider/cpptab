@@ -14,7 +14,7 @@ OUTLIB=$(OUTLIBDIR)/lib$(OUTLIBNAME).a
 OUTBIN=main.out
 
 CXX=g++
-CXXFLAGS=-Wall -Wpedantic -std=c++17 -O3
+CXXFLAGS=-Wall -Wpedantic -std=c++17 -O3 -g3 
 LDFLAGS=
 
 OBJDIR=objects

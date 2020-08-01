@@ -7,6 +7,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <string.h>
 #include <iostream>
 #include <typeinfo>
 //#include <regex>
@@ -19,78 +20,52 @@ using namespace std;
 using namespace st;
 
 typedef struct scan_result {
-  size_t target_offset;
-  size_t delimiter_count;
-  bool match;
+  char* target;
+  bool match_delimiter;
+  bool match_nl;
 } scan_result;
 
 void reset_scan_result(scan_result& r){
-  r.target_offset = 0;
-  r.delimiter_count = 0;
-  r.match = false;
+  r.target = NULL;
+  r.match_delimiter = false;
+  r.match_nl = false;
 }
 
-scan_result create_scan_result(){
-  scan_result r = scan_result();
+void scan_newline_left(const char* b, int n, char delimiter, int delimiter_n,
+			scan_result& r){
   reset_scan_result(r);
-  return r;
-}
 
-void scan_newline_left(const char* b, int n, char delimiter, scan_result& result){
-  reset_scan_result(result);
+  char* nl = (char*)memrchr(b-n,'\n',n);
+  r.match_nl = nl != NULL;
+  
+  const char* dl = b;
 
-  for(int i=0;i<n;i++){
-    char ch = b[-i];
-    if(ch=='\n') {
-      result.target_offset = i;
-      result.match = true;
-      return;
-    } else if(ch==delimiter) {
-      result.delimiter_count++;
-    }
+  for(int i=0;i<delimiter_n;i++) {
+    int n = dl-nl-1;
+    dl = (char*)memrchr(dl-n,delimiter,n);
+    //printf("%p\n",dl);
   }
-  return;
+  r.match_delimiter = dl > nl;
+  r.target = nl;
+
+  //printf("%d %d %p\n",r.match_nl,r.match_delimiter,r.target);
 }
 
-void scan_newline_right(const char* b, int n, char delimiter, scan_result& result){
-  reset_scan_result(result);
-
-  for(int i=0;i<n;i++){
-    char ch = b[i];
-    if(ch=='\n') {
-      result.target_offset = i;
-      result.match = true;
-      return;
-    } else if(ch==delimiter) {
-      result.delimiter_count++;
-    }
-  }
-  return;
-}
-
-size_t print_header(circbuf* c, char* out, uint out_pos){
+void print_header(circbuf* c, char* out){
   char* head = circbuf_head(c);
-  scan_result result = scan_result();
-  scan_newline_right(head,c->read_size,',',result);
-  int offset_right = result.target_offset;
-  for(int i=0;i<offset_right;i++) {
-    out[out_pos] = head[i];
-    out_pos++;
-  }
-  out[out_pos] = '\n';
-  out_pos++;
-  circbuf_head_forward(c,offset_right);
-  return out_pos;
+  char* nl = (char*)memchr(head,'\n',c->read_size);
+  size_t n = nl - head;
+  fwrite(head, sizeof(char), n, stdout);
+  return;
 }
 
 
-size_t match_print_line(circbuf* c, 
-		      boost::regex& pattern,
-		      boost::cmatch& match_result,
-		      scan_result& scan_result,
-		      char* out,
-		      size_t out_pos
-		      ){
+bool match_print_line(circbuf* c, 
+			boost::regex& pattern,
+			boost::cmatch& match_result,
+			scan_result& sc_result,
+			char* out
+			){
   const char* head = circbuf_head(c);
   int read_size = c->read_size;
   uint delimiter_count = 2;
@@ -99,70 +74,58 @@ size_t match_print_line(circbuf* c,
   if(match){
     long pos = match_result.position();
     long size = match_result.length();
-
-    char* b = circbuf_head(c);
-  
-    scan_newline_left(head+pos,read_size+pos,',',scan_result);
     long new_pos = pos+size;
-    if(!scan_result.match) throw "Could not find left newline";
 
-    bool print = scan_result.delimiter_count == delimiter_count;
-    if(print) {  
-      uint offset_left = scan_result.target_offset;
-      for(int i=pos-offset_left+1;i<new_pos;i++) {
-	out[out_pos] = b[i];
-	out_pos++;
-      }
-    }
-      
     head = circbuf_head_forward(c,new_pos);
-    b = circbuf_head(c);
-    if(print) {
-      scan_newline_right(b,read_size,',',scan_result);
-      if(!scan_result.match) throw "Could not find right newline";
-      uint offset_right = scan_result.target_offset;
-      for(uint i=0;i<offset_right;i++) {
-	out[out_pos] = b[i];
-	out_pos++;
-      }
-      out[out_pos] = '\n';
-      out_pos++;
+  
+    scan_newline_left(head-size,read_size,',',delimiter_count,sc_result);
+    if(!sc_result.match_nl) throw "Could not find left newline";
+
+    bool print = sc_result.match_delimiter;
+    if(print) {  
+      char* nl_left = sc_result.target;
+      char* nl_right = (char*)memchr(head,'\n',read_size);
+      size_t n = nl_right - nl_left;
+      fwrite(nl_left, sizeof(char), n, stdout);
     }
   } else {
-    head = circbuf_head_forward(c,read_size);
+    if(!c->finished){
+      char* del_left = (char*)memrchr(head,',',read_size);
+      head = circbuf_head_forward(c,del_left-head);
+    } else {
+      head = circbuf_head_forward(c,read_size);
+    }
   }
 
-  return out_pos;
-
+  return match;
 }
 
 
 int main(int argc, const char* argv[]){
-
-  std::ios_base::sync_with_stdio(false);
-  uint size = 16384;
+  uint size = 4096 * 1000;
   char* bytes = new char[size]();
   uint read_size = 4096;
-  uint out_size = read_size * 10000;
+  uint out_size = read_size * 100;
+  char* out = new char[out_size];
+  setvbuf(stdout, out, _IOFBF, out_size);
+
   FILE* fd = fopen("sales.csv","r");
-  //FILE* fd = fopen("test.csv","r");
 
   circbuf* c = circbuf_create(bytes,size,read_size,fd);
   boost::regex pattern("Fruits");
   boost::cmatch match_result;
   scan_result sc_result;
 
-  char* out = new char[out_size];
-  uint out_pos = 0;
-  out_pos = print_header(c,out,out_pos);
+  print_header(c,out);
+
   char* head = circbuf_head(c);
   while(head[0]!=-1){
-    out_pos = match_print_line(c,pattern,match_result,sc_result,out,out_pos);
+    match_print_line(c,pattern,match_result,sc_result,out);
     head = circbuf_head(c);
   }
 
-  out[out_pos] = '\0';
-  printf("%s",out);
+  fprintf(stdout,"\n");
+  fflush(stdout);
 
   // Cleanup
   circbuf_free(c);
