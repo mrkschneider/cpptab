@@ -1,0 +1,2 @@
+
+#define STDOUT_SIZE 4096 * 100

@@ -1,5 +1,5 @@
 include Makefile.env
-INCLUDEDIRS=./include $(BOOSTDIR)/include $(CIRCBUFDIR)/include
+INCLUDEDIRS=./include $(BOOSTDIR)/include $(CIRCBUFDIR)/include $(CLI11DIR)/include
 LIBDIRS=$(OUTLIBDIR) $(BOOSTDIR)/lib $(CIRCBUFDIR)/lib
 LIBNAMES=circbuf.opt :libboost_regex.a
 TESTINCLUDEDIRS=$(INCLUDEDIRS) $(CXXTESTDIR)
