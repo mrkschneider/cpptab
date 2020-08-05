@@ -1,5 +1,5 @@
-#ifndef INCLUDE_ST_HPP_
-#define INCLUDE_ST_HPP_
+#ifndef INCLUDE_CSV_ST_HPP_
+#define INCLUDE_CSV_ST_HPP_
 
 #include <string>
 #include <sstream>
@@ -20,4 +20,4 @@ namespace st {
   }
 }
 
-#endif /* INCLUDE_ST_HPP_ */
+#endif

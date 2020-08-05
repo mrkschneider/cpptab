@@ -3,76 +3,172 @@
 #include <boost/regex.hpp>
 #include <CLI/CLI.hpp>
 #include "../include/st.hpp"
-#include "../include/constants.h"
+#include "../include/constants.hpp"
+#include <poll.h>
 
 using namespace std;
 using namespace st;
 using namespace csv;
 
-void run_select(){
-
-  return;
+string normalize_regex(string regex, char delimiter){
+  ostringstream s;
+  for(size_t i=0;i<regex.size();i++){
+    char c = regex[i];
+    if(c=='\\'){
+      i++;
+      continue;
+    } else if(c=='.'){
+      s << "[^" << delimiter << "]";
+    } else {
+      s << c;
+    }
+  }
+  return s.str();
 }
 
+Context create_context(string csv_path, uint read_size, uint buffer_size){
+    if(!csv_path.empty())
+      return Context(csv_path, read_size, buffer_size);
+
+    struct pollfd pfd = { fileno(stdin), POLLIN };
+    int rc = poll(&pfd,1,POLL_TIMEOUT);
+    if(rc > 0 && pfd.revents & POLLIN)
+      return Context(stdin, read_size, buffer_size);
+    else
+      throw runtime_error("Could not read data from file or STDIN");
+}
+
+shared_ptr<Matcher> create_matcher(string regex, string matcher_type,
+				   char delimiter){
+  shared_ptr<Matcher> r(nullptr);
+
+  if(matcher_type == "regex"){
+    boost::regex pattern(regex);
+    boost::cmatch match_result;
+    r = make_shared<Regex_Matcher>(pattern,match_result);
+  } else if(matcher_type == "bm"){
+    r = make_shared<Boyer_Moore_Matcher>(regex,delimiter);
+  } else {
+    cerr << "Unknown matcher type: " << matcher_type << endl;
+    throw runtime_error("Invalid matcher type");
+  }
+ 
+  return r;
+}
+
+size_t column_index(const Line_Scan& sc_result, string column){
+  
+  for(size_t col=0;col<sc_result.n_fields();col++){
+    string s = string(sc_result.field(col),sc_result.field_size(col));
+    int rc = column.compare(s);
+    if(rc==0) return col;
+  }
+
+  cerr << "Requested column: " << column << endl;
+  cerr << "Available columns: " << string(sc_result.begin(),sc_result.length()) << endl;
+  throw runtime_error("Could not find matching column"); 
+}
+
+shared_ptr<Line_Scan_Printer> create_printer(const Line_Scan& sc_result, char delimiter,
+					     vector<string> out_columns){
+  shared_ptr<Line_Scan_Printer> r(nullptr);
+  if(out_columns.empty()) {
+    r = make_shared<Line_Printer>();
+    return r;
+  }
+  vector<size_t> idxs;
+  for(const string& column:out_columns){
+    size_t idx = column_index(sc_result,column);
+    idxs.push_back(idx);
+  }
+  r = make_shared<Field_Printer>(idxs,delimiter);
+  return r;
+}
+
+char str2char(string s){
+  if(s.size()!=1) throw runtime_error("Cannot convert string to char: " + s);
+  return s[0];
+}
 
 int main(int argc, const char* argv[]){
-  uint read_size = 4096;
-  CLI::App app{"CppCsv"};
-
-  string column = "";
-  string regex = "";
-  string csv_path = "";
-
-  app.add_option("-c,--column",column,"Column to match")->required();
-  app.add_option("-r,--regex",regex,"Regex to match in selected column")->required();
-  app.add_option("csv",csv_path,"CSV path");
-
-
-  CLI11_PARSE(app, argc, argv);
-  
-  Context c = Context(csv_path, read_size, read_size * 1000);
-  circbuf* cbuf = c.cbuf();
-
-  boost::regex pattern(regex);
-  boost::cmatch match_result;
-  Line_Scan sc_result;
-
-  print_header(cbuf, sc_result);
-
-  size_t col = 0;
-  int rc = 0;
-  for(;col<sc_result.n_fields();col++){
-    size_t start_offset = sc_result.delimiter_offsets()[col];
-    size_t end_offset = sc_result.delimiter_offsets()[col+1];
-    rc = column.compare(string(
-			       sc_result.begin()+start_offset+1,
-			       end_offset - start_offset - 1));
-    if(rc==0) break;
-  }
-  if(rc!=0) {
-    cerr << "Requested column: " << column << endl;
-    cerr << "Available columns: " << string(sc_result.begin()+1,sc_result.length()-1) << endl;
-    throw runtime_error("Could not find matching column"); 
-  }
-
-  char* head = circbuf_head(cbuf);
-  while(head[0]!=-1){
-    match_print_line(cbuf,pattern,match_result,col,sc_result);
-    head = circbuf_head(cbuf);
-  }
-  
   try{
     char out[STDOUT_SIZE];
     setvbuf(stdout, out, _IOFBF, STDOUT_SIZE);
 
-    run_select();
-    //putc('\n',stdout);
+    CLI::App app{"CppCsv"};
+    
+    uint read_size = 4096;
+    string column = "";
+    string regex = "";
+    string match = "";
+    string csv_path = "";
+    string delimiter_str = ",";
+    vector<string> out_columns;
+    bool complete_match = false;
+    string matcher_type = "";
 
+    app.add_option("-c,--column",column,"Column to match")->required();
+    app.add_option("-d,--delimiter",delimiter_str,
+		   "Column delimiter (default '" + delimiter_str + "')");
+    app.add_option("-o,--out-columns",out_columns,"Output columns,separated by ',' (default all)")
+      ->delimiter(',');
+    app.add_option("--read-size",read_size,"Size of sequential buffer reads (default 4kb)")
+      ->transform(CLI::AsSizeValue(false));
+    app.add_flag("--complete",complete_match,"Require that fields match entirely (always active for --match)");
+    app.add_option("csv",csv_path,"CSV path");
+
+    auto input_optg = app.add_option_group("match")->required();
+        
+    auto regex_opt =
+      input_optg->add_option("-r,--regex",regex,"Regex to match in selected column");
+    auto match_opt =
+      input_optg->add_option("-m,--match",match,"Exact string to match in selected column");
+    regex_opt->excludes(match_opt);
+    match_opt->excludes(regex_opt);
+   
+    CLI11_PARSE(app, argc, argv);
+
+    uint buffer_size = read_size * 1000;
+    char delimiter = str2char(delimiter_str);
+    string pattern;
+    
+    if(!regex.empty()) {
+      matcher_type = "regex";
+      pattern = normalize_regex(regex, delimiter);
+    }
+    else if(!match.empty()){
+      matcher_type = "bm";
+      pattern = match;
+      complete_match = true;
+    }
+    else throw runtime_error("Could not determine matcher type");
+    
+    Context c = create_context(csv_path, read_size, buffer_size);
+    circbuf* cbuf = c.cbuf();
+
+    Line_Scan sc_result;
+
+    scan_header(cbuf, delimiter, sc_result);
+
+    shared_ptr<Matcher> matcher = create_matcher(pattern, matcher_type, delimiter);
+    shared_ptr<Line_Scan_Printer> printer = create_printer(sc_result, delimiter, out_columns);
+
+    printer->print(sc_result);
+
+    size_t col = column_index(sc_result, column);
+      
+    char* head = circbuf_head_forward(cbuf, sc_result.length());
+    while(head[0] != EOF){
+      scan_match_print_line(cbuf,delimiter,*matcher,col,
+			    complete_match,sc_result,*printer);
+      head = circbuf_head(cbuf);
+    }
+    
     fflush(stdout);
   } catch(const std::exception& e){
     std::cerr << "ERROR: " << e.what() << std::endl;
     return 1;
   }
-    
+  
   return 0;
 }

@@ -1,5 +1,5 @@
-#ifndef INCLUDE_CSV_HPP_
-#define INCLUDE_CSV_HPP_
+#ifndef INCLUDE_CSV_SELECT_HPP_
+#define INCLUDE_CSV_SELECT_HPP_
 
 #include <string>
 #include <vector>
@@ -12,7 +12,9 @@
 #include <boost/regex.hpp>
 #include <boost/scoped_array.hpp>
 #include <boost/scoped_ptr.hpp>
+#include <boost/algorithm/searching/boyer_moore.hpp>
 #include <circbuf.h>
+#include "../include/constants.hpp"
 
 namespace csv {
   
@@ -23,15 +25,25 @@ namespace csv {
     boost::scoped_array<char> _bytes;
     FILE* _fd;
     circbuf* _cbuf;
-  public:
-    Context(std::string csv_path, uint read_size, uint buffer_size){
+
+    void initialize(FILE* fd, uint read_size, uint buffer_size){
       _read_size = read_size;
       _buffer_size = buffer_size;
       _bytes.reset(new char[buffer_size]);
-      _fd = fopen(csv_path.c_str(),"r");
+      _fd = fd;
       _cbuf = circbuf_create(_bytes.get(),buffer_size,read_size,_fd);
-      _cbuf->bytes[read_size-1] = '\n';
+      _cbuf->bytes[read_size-1] = NL;
     }
+  public:
+    Context(FILE* fd, uint read_size, uint buffer_size){
+      initialize(fd, read_size, buffer_size);
+    }
+    
+    Context(std::string csv_path, uint read_size, uint buffer_size){ 
+      FILE* fd = fopen(csv_path.c_str(),"r");
+      initialize(fd, read_size, buffer_size);
+    }
+
     ~Context(){
       circbuf_free(_cbuf);
       fclose(_fd);
@@ -39,21 +51,65 @@ namespace csv {
     Context(const Context& o) = delete; 
     Context& operator=(const Context& o) = delete;
     
-    circbuf* cbuf(){return _cbuf;};
+    inline circbuf* cbuf() const {return _cbuf;};
   };
-  
+
+  class Matcher {
+  public:
+    virtual bool search(const char* begin, size_t n) = 0;
+    virtual size_t position() const = 0;
+    virtual size_t size() const = 0;
+  };
+
+  class Regex_Matcher : public Matcher {
+  private:
+    boost::regex _pattern;
+    boost::cmatch _match_result;
+    
+  public:
+    Regex_Matcher(boost::regex pattern, boost::cmatch match_result) :
+      _pattern { pattern }, _match_result { match_result } {};
+    
+    virtual bool search(const char* begin, size_t n);
+    inline virtual size_t position() const { return _match_result.position();};
+    inline virtual size_t size() const {return _match_result.length();};
+  };
+
+  class Boyer_Moore_Matcher : public Matcher {
+  private:
+    std::string _pattern;
+    char _delimiter;
+    boost::scoped_ptr<boost::algorithm::boyer_moore<const char*>> _matcher;
+    size_t _position;
+    size_t _size;
+
+  public:
+    Boyer_Moore_Matcher(std::string pattern, char delimiter) {
+      _pattern = pattern;
+      _size = pattern.size();
+      _position = 0;
+      _delimiter = delimiter;
+      const char* begin = _pattern.c_str();
+      const char* end = begin + _size;
+      _matcher.reset(new boost::algorithm::boyer_moore<const char*>(begin,end));
+    };
+
+    virtual bool search(const char* begin, size_t n);
+    inline virtual size_t position() const { return _position;};
+    inline virtual size_t size() const {return _size;};
+
+  };
   
   class Line_Scan {
   private:
     char* _begin;
     size_t _length;
-    std::vector<size_t> _delimiter_offsets;
+    std::vector<size_t> _field_offsets;
     size_t _match_field;
     size_t _n_fields;
 
   public:
     Line_Scan() {
-      _delimiter_offsets = std::vector<size_t>();
       reset();
     };
     void reset() {
@@ -61,18 +117,42 @@ namespace csv {
       _length = 0;
       _match_field = 0;
       _n_fields = 0;
-      _delimiter_offsets.clear();
+      _field_offsets.clear();
     };
-    char* begin() const {return _begin;};
-    size_t length() const {return _length;};
-    size_t match_field() const {return _match_field;};
-    size_t n_fields() const {return _n_fields;};
-    const std::vector<size_t>& delimiter_offsets() const {return _delimiter_offsets;};
+    inline const char* begin() const {return _begin;};
+    inline size_t length() const {return _length;};
+    inline size_t match_field() const {return _match_field;};
+    inline size_t n_fields() const {return _n_fields;};
+    inline const std::vector<size_t>& field_offsets() const {return _field_offsets;};
 
-    std::string str();
+    const char* field(size_t idx) const;
+    size_t field_size(size_t idx) const;
+    std::string str() const;
     
     friend void scan(const char* buf, uint n, char target, char delimiter, Line_Scan&);
   };
+
+  class Line_Scan_Printer {
+  public:
+    virtual void print(const Line_Scan& sc_result) const = 0;
+  };
+
+  class Line_Printer : public Line_Scan_Printer {
+  public:
+    virtual void print(const Line_Scan& sc_result) const;
+  };
+
+  class Field_Printer : public Line_Scan_Printer {
+  private:
+    std::vector<size_t> _fields;
+    char _delimiter;
+
+  public:
+    virtual void print(const Line_Scan& sc_result) const;
+    Field_Printer(std::vector<size_t> fields, char delimiter) :
+      _fields {fields}, _delimiter {delimiter} {};   
+  };
+      
 
   inline char* simple_scan_left(const char* buf, uint n, char target){
     return (char*)memrchr(buf-n,target,n);
@@ -83,12 +163,16 @@ namespace csv {
 
   void scan(const char* buf, uint n, char target, char delimiter, Line_Scan&);
   void print_line(const Line_Scan& sc_result);
-  void print_fields(const Line_Scan& sc_result, const std::vector<size_t>& print_fields);
-  void print_header(circbuf* c, Line_Scan& sc_result);
-  bool match_print_line(circbuf* c, const boost::regex& pattern,
-			boost::cmatch& match_result,
-			size_t pattern_field,
-			Line_Scan& sc_result);
+  void print_fields(const Line_Scan& sc_result, char delimiter,
+                    const std::vector<size_t>& print_fields);
+  void scan_header(circbuf* c, char delimiter, Line_Scan& sc_result);
+  void scan_match_print_line(circbuf* c, char delimiter,
+			     Matcher& matcher,
+			     size_t pattern_field,
+			     bool complete_match,
+			     Line_Scan& sc_result,
+			     const Line_Scan_Printer& printer
+			     );
 }
 
-#endif /* INCLUDE_CSV_HPP_ */
+#endif
