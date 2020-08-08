@@ -45,7 +45,7 @@ shared_ptr<Matcher> create_matcher(string regex, string matcher_type,
   if(matcher_type == "regex"){
     boost::regex pattern(regex, REGEX_SYNTAX_FLAGS);
     boost::cmatch match_result;
-    r = make_shared<Regex_Matcher>(pattern,match_result);
+    r = make_shared<Regex_Matcher>(pattern,match_result,delimiter);
   } else if(matcher_type == "bm"){
     r = make_shared<Boyer_Moore_Matcher>(regex,delimiter);
   } else {
@@ -159,7 +159,7 @@ int main(int argc, const char* argv[]){
     size_t col = column_index(sc_result, column);
       
     char* head = circbuf_head_forward(cbuf, sc_result.length());
-    while(head[0] != EOF){
+    while(head[0] != '\0'){
       scan_match_print_line(cbuf,delimiter,*matcher,col,
 			    complete_match,linescan,sc_result,*printer);
       head = circbuf_head(cbuf);

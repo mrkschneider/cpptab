@@ -81,7 +81,7 @@ void csv::scan(const char* b, uint n,
     if(rc > 0) {
         nl_right = lscan->begin + lscan->size - 1;
     } else if(rc == 0) {
-      char* nl = simple_scan_right(b,n,EOF);
+      char* nl = simple_scan_right(b,n,'\0');
       if(nl==nullptr) throw runtime_error("Could not find right newline. Maybe --read-size is too small");
       nl[0] = NL;
       nl_right = nl;
@@ -93,18 +93,19 @@ void csv::scan(const char* b, uint n,
     r._length = nl_right - nl_left;
 
     size_t offset = b - nl_left;
-    for(size_t i=1;i<lscan->offsets_n-1;i++){
+    for(size_t i=1;i<lscan->offsets_n;i++){
       r._field_offsets.push_back(lscan->offsets[i]+offset);    
     }
   }
 
-  r._n_fields = r._field_offsets.size()-2;
+  r._n_fields = r._field_offsets.size();
 
   return;
 }
 
 void csv::print_line(const Line_Scan& sc_result){
-  fwrite(sc_result.begin(), sizeof(char), sc_result.length(), stdout);
+  fwrite(sc_result.begin(), sizeof(char), sc_result.length()-1, stdout);
+  putc('\n',stdout);
 }
 
 void csv::print_fields(const Line_Scan& sc_result, char delimiter,
@@ -119,11 +120,11 @@ void csv::print_fields(const Line_Scan& sc_result, char delimiter,
     putc('\n',stdout);
 }
 
-void csv::scan_header(circbuf* c, char delimiter, linescan* l_r, Line_Scan& sc_result){
+void csv::scan_header(circbuf* c, char delimiter, linescan* lscan, Line_Scan& sc_result){
   size_t read_size = c->read_size;
   char* head = simple_scan_right(circbuf_head(c),read_size,delimiter);
   if(head==nullptr) throw runtime_error("Could not find delimiter in header. Maybe --read-size is too small");
-  scan(head,read_size,NL,delimiter,l_r,sc_result);
+  scan(head,read_size,NL,delimiter,lscan,sc_result);
   return;
 }
 
@@ -143,9 +144,15 @@ void csv::scan_match_print_line(circbuf* c,
   if(match){
     /* Regex matches in the buffer. 
        Now we need to find out whether the match is located in the correct column. */
-    long match_end = matcher.position() + matcher.size();
+    size_t match_end_offset = matcher.position() + matcher.size();
+        
     // Move to end of regex match
-    head = circbuf_head_forward(c,match_end);
+    head = circbuf_head_forward(c,match_end_offset);
+
+    char* match_delimiter = simple_scan_left(head, matcher.size(),
+					      delimiter);
+    if(match_delimiter != NULL)
+      throw runtime_error("Malformed input pattern: Matches delimiter");
     // Find delimiters and surrounding newlines
     scan(head,read_size,NL,delimiter,l_r,sc_result);
     size_t match_field = sc_result.match_field();
@@ -181,7 +188,7 @@ void csv::scan_match_print_line(circbuf* c,
   } else {
     /* Partial matches at the end of the buffer are impossible once 
        circbuffer is finished. This branch makes sure that the circbuffer head
-       eventually reaches EOF.
+       eventually reaches the end.
      */
     circbuf_head_forward(c,read_size);
     return;

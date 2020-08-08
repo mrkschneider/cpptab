@@ -1,7 +1,7 @@
 #ifndef INCLUDE_CSV_CONSTANTS_HPP_
 #define INCLUDE_CSV_CONSTANTS_HPP_
 
-#define STDOUT_SIZE 4096 * 100
+#define STDOUT_SIZE 65535
 #define POLL_TIMEOUT 100
 
 #define NL '\n'
@@ -24,7 +24,8 @@ namespace csv {
     boost::regex_constants::match_not_null |
     boost::regex_constants::match_not_dot_newline |
     boost::regex_constants::match_not_dot_null |
-    boost::regex_constants::match_nosubs
+    boost::regex_constants::match_nosubs |
+    boost::regex_constants::match_any
     ;
 
 }

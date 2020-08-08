@@ -70,10 +70,12 @@ namespace csv {
   private:
     boost::regex _pattern;
     boost::cmatch _match_result;
+    char _delimiter;
     
   public:
-    Regex_Matcher(boost::regex pattern, boost::cmatch match_result) :
-      _pattern { pattern }, _match_result { match_result } {};
+    Regex_Matcher(boost::regex pattern, boost::cmatch match_result,
+		  char delimiter) :
+      _pattern { pattern }, _match_result { match_result }, _delimiter {delimiter} {};
     
     virtual bool search(const char* begin, size_t n);
     inline virtual size_t position() const { return _match_result.position();};
