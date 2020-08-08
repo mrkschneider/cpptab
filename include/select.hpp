@@ -14,6 +14,7 @@
 #include <boost/scoped_ptr.hpp>
 #include <boost/algorithm/searching/boyer_moore.hpp>
 #include <circbuf.h>
+#include <linescan.h>
 #include "../include/constants.hpp"
 
 namespace csv {
@@ -25,14 +26,16 @@ namespace csv {
     boost::scoped_array<char> _bytes;
     FILE* _fd;
     circbuf* _cbuf;
+    linescan* _lscan;
 
     void initialize(FILE* fd, uint read_size, uint buffer_size){
       _read_size = read_size;
       _buffer_size = buffer_size;
-      _bytes.reset(new char[buffer_size]);
+      _bytes.reset(new char[buffer_size]());
       _fd = fd;
       _cbuf = circbuf_create(_bytes.get(),buffer_size,read_size,_fd);
       _cbuf->bytes[read_size-1] = NL;
+      _lscan = linescan_create(read_size);
     }
   public:
     Context(FILE* fd, uint read_size, uint buffer_size){
@@ -45,6 +48,7 @@ namespace csv {
     }
 
     ~Context(){
+      linescan_free(_lscan);
       circbuf_free(_cbuf);
       fclose(_fd);
     }
@@ -52,6 +56,7 @@ namespace csv {
     Context& operator=(const Context& o) = delete;
     
     inline circbuf* cbuf() const {return _cbuf;};
+    inline linescan* lscan() const {return _lscan;};
   };
 
   class Matcher {
@@ -102,7 +107,7 @@ namespace csv {
   
   class Line_Scan {
   private:
-    char* _begin;
+    const char* _begin;
     size_t _length;
     std::vector<size_t> _field_offsets;
     size_t _match_field;
@@ -129,7 +134,8 @@ namespace csv {
     size_t field_size(size_t idx) const;
     std::string str() const;
     
-    friend void scan(const char* buf, uint n, char target, char delimiter, Line_Scan&);
+    friend void scan(const char* buf, uint n, char target, char delimiter,
+		     linescan* l_r, Line_Scan&);
   };
 
   class Line_Scan_Printer {
@@ -161,15 +167,17 @@ namespace csv {
     return (char*)memchr(buf,target,n);
   }
 
-  void scan(const char* buf, uint n, char target, char delimiter, Line_Scan&);
+  void scan(const char* buf, uint n, char target, char delimiter, linescan* l_r,
+	    Line_Scan&);
   void print_line(const Line_Scan& sc_result);
   void print_fields(const Line_Scan& sc_result, char delimiter,
                     const std::vector<size_t>& print_fields);
-  void scan_header(circbuf* c, char delimiter, Line_Scan& sc_result);
+  void scan_header(circbuf* c, char delimiter, linescan* l_r, Line_Scan& sc_result);
   void scan_match_print_line(circbuf* c, char delimiter,
 			     Matcher& matcher,
 			     size_t pattern_field,
 			     bool complete_match,
+			     linescan* l_r,
 			     Line_Scan& sc_result,
 			     const Line_Scan_Printer& printer
 			     );

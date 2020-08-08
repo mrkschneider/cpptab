@@ -10,6 +10,9 @@
 
 namespace csv {
 
+  inline const boost::regex_constants::syntax_option_type REGEX_SYNTAX_FLAGS =
+    boost::regex_constants::perl;
+
   inline const boost::regex_constants::match_flag_type REGEX_MATCH_FLAGS =
     boost::regex_constants::match_default |
     boost::regex_constants::match_not_bol |
@@ -20,7 +23,9 @@ namespace csv {
     boost::regex_constants::match_not_eow |
     boost::regex_constants::match_not_null |
     boost::regex_constants::match_not_dot_newline |
-    boost::regex_constants::match_not_dot_null;
+    boost::regex_constants::match_not_dot_null |
+    boost::regex_constants::match_nosubs
+    ;
 
 }
 #endif

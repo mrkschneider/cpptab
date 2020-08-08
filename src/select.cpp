@@ -51,59 +51,55 @@ size_t csv::Line_Scan::field_size(size_t idx) const {
 void csv::scan(const char* b, uint n,
 	       char target,
 	       char delimiter,
-	       Line_Scan& r){
+	       linescan* lscan,
+	       Line_Scan& r
+	       ){
   r.reset();
+
+  uint64_t cmask = linescan_create_mask(delimiter);
+
+  const char* nl_left;
+  {
+    int rc = linescan_rfind(b-n,cmask,n,lscan);
+    
+    if(rc < 1) throw runtime_error("Could not find left newline. Maybe --read-size is too small.");
+    size_t offset = lscan->offsets[lscan->offsets_n-1];
   
-  char* nl_left = simple_scan_left(b,n,NL);
-  if(nl_left==nullptr) throw runtime_error("Could not find left newline. Maybe --read-size is too small.");
-  r._begin = nl_left + 1;
+    nl_left = lscan->begin + offset;
+    for(int i=lscan->offsets_n-1;i>=1;i--){
+      r._field_offsets.push_back(lscan->offsets[i]-offset);    
+    }
 
-  char* nl_right = simple_scan_right(b,n,NL);
+    r._begin = nl_left + 1;
+    r._match_field = r._field_offsets.size() - 1;
+  }
 
-  if(nl_right==nullptr) {
-    nl_right = simple_scan_right(b,n,EOF);
-    if(nl_right!=nullptr) {
-      nl_right[0] = NL;
+  const char* nl_right;
+  {
+    int rc = linescan_find(b,cmask,n,lscan); 
+
+    if(rc > 0) {
+        nl_right = lscan->begin + lscan->size - 1;
+    } else if(rc == 0) {
+      char* nl = simple_scan_right(b,n,EOF);
+      if(nl==nullptr) throw runtime_error("Could not find right newline. Maybe --read-size is too small");
+      nl[0] = NL;
+      nl_right = nl;
+      lscan->offsets[lscan->offsets_n] = nl_right - b;
+      lscan->offsets_n++;
     } else {
       throw runtime_error("Could not find right newline. Maybe --read-size is too small");
+    } 
+    r._length = nl_right - nl_left;
+
+    size_t offset = b - nl_left;
+    for(size_t i=1;i<lscan->offsets_n-1;i++){
+      r._field_offsets.push_back(lscan->offsets[i]+offset);    
     }
-  }
-  
-  r._length = nl_right - nl_left;
-  {
-    const char* dl = b;
-    int nd = dl-nl_left;
-    while(true){
-      dl = simple_scan_left(dl,nd,delimiter);
-      if(dl > nl_left) {
-	nd = dl-nl_left;
-	r._field_offsets.push_back(nd);
-      }
-      else
-	break;
-    }
-    r._match_field = r._field_offsets.size();
-    r._field_offsets.push_back(0);
-    reverse(r._field_offsets.begin(), r._field_offsets.end());
   }
 
-  {
-    const char* dr = b;
-    r._field_offsets.push_back(dr-nl_left);
-    int nd = nl_right - dr;
-    while(true){
-      dr = simple_scan_right(dr+1,nd,delimiter);
-      if(dr==NULL) break;
-      else if(dr < nl_right) {
-	nd = nl_right - dr;
-	r._field_offsets.push_back(dr - nl_left);
-      }
-      else
-	break;
-    }
-    r._field_offsets.push_back(r._length);
-  }
   r._n_fields = r._field_offsets.size()-2;
+
   return;
 }
 
@@ -123,11 +119,11 @@ void csv::print_fields(const Line_Scan& sc_result, char delimiter,
     putc('\n',stdout);
 }
 
-void csv::scan_header(circbuf* c, char delimiter, Line_Scan& sc_result){
+void csv::scan_header(circbuf* c, char delimiter, linescan* l_r, Line_Scan& sc_result){
   size_t read_size = c->read_size;
   char* head = simple_scan_right(circbuf_head(c),read_size,delimiter);
   if(head==nullptr) throw runtime_error("Could not find delimiter in header. Maybe --read-size is too small");
-  scan(head,read_size,NL,delimiter,sc_result);
+  scan(head,read_size,NL,delimiter,l_r,sc_result);
   return;
 }
 
@@ -136,6 +132,7 @@ void csv::scan_match_print_line(circbuf* c,
 				Matcher& matcher,
 				size_t pattern_field,
 				bool complete_match,
+				linescan* l_r,
 				Line_Scan& sc_result,
 				const Line_Scan_Printer& printer){
   const char* head = circbuf_head(c);
@@ -150,7 +147,7 @@ void csv::scan_match_print_line(circbuf* c,
     // Move to end of regex match
     head = circbuf_head_forward(c,match_end);
     // Find delimiters and surrounding newlines
-    scan(head,read_size,NL,delimiter,sc_result);
+    scan(head,read_size,NL,delimiter,l_r,sc_result);
     size_t match_field = sc_result.match_field();
 
     bool is_complete = (!complete_match) ||

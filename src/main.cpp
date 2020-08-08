@@ -43,7 +43,7 @@ shared_ptr<Matcher> create_matcher(string regex, string matcher_type,
   shared_ptr<Matcher> r(nullptr);
 
   if(matcher_type == "regex"){
-    boost::regex pattern(regex);
+    boost::regex pattern(regex, REGEX_SYNTAX_FLAGS);
     boost::cmatch match_result;
     r = make_shared<Regex_Matcher>(pattern,match_result);
   } else if(matcher_type == "bm"){
@@ -92,6 +92,7 @@ char str2char(string s){
 
 int main(int argc, const char* argv[]){
   try{
+
     char out[STDOUT_SIZE];
     setvbuf(stdout, out, _IOFBF, STDOUT_SIZE);
 
@@ -145,10 +146,10 @@ int main(int argc, const char* argv[]){
     
     Context c = create_context(csv_path, read_size, buffer_size);
     circbuf* cbuf = c.cbuf();
-
+    linescan* linescan = c.lscan();
     Line_Scan sc_result;
 
-    scan_header(cbuf, delimiter, sc_result);
+    scan_header(cbuf, delimiter, linescan, sc_result);
 
     shared_ptr<Matcher> matcher = create_matcher(pattern, matcher_type, delimiter);
     shared_ptr<Line_Scan_Printer> printer = create_printer(sc_result, delimiter, out_columns);
@@ -160,7 +161,7 @@ int main(int argc, const char* argv[]){
     char* head = circbuf_head_forward(cbuf, sc_result.length());
     while(head[0] != EOF){
       scan_match_print_line(cbuf,delimiter,*matcher,col,
-			    complete_match,sc_result,*printer);
+			    complete_match,linescan,sc_result,*printer);
       head = circbuf_head(cbuf);
     }
     
