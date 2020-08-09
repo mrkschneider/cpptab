@@ -157,9 +157,11 @@ void csv::scan_match_print_line(circbuf* c,
     scan(head,read_size,NL,delimiter,l_r,sc_result);
     size_t match_field = sc_result.match_field();
 
+    char end = head[0];
+    char start = head[-matcher.size()-1];
     bool is_complete = (!complete_match) ||
-      (delimiter == head[0] &&
-       delimiter == head[-matcher.size()-1]);
+      ((delimiter == start || NL == start)  &&
+       (delimiter == end || NL == end));
 
     if(match_field == pattern_field){
       // Match is in expected column.
