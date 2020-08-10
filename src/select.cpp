@@ -65,7 +65,7 @@ void csv::scan(const char* b, uint n,
     if(rc < 1) throw runtime_error("Could not find left newline. Maybe --read-size is too small.");
     size_t offset = lscan->offsets[lscan->offsets_n-1];
   
-    nl_left = lscan->begin + offset;
+    nl_left = lscan->buf + offset;
     for(int i=lscan->offsets_n-1;i>=1;i--){
       r._field_offsets.push_back(lscan->offsets[i]-offset);    
     }
@@ -79,7 +79,7 @@ void csv::scan(const char* b, uint n,
     int rc = linescan_find(b,cmask,n,lscan); 
 
     if(rc > 0) {
-        nl_right = lscan->begin + lscan->size - 1;
+        nl_right = lscan->buf + lscan->size - 1;
     } else if(rc == 0) {
       char* nl = simple_scan_right(b,n,'\0');
       if(nl==nullptr) throw runtime_error("Could not find right newline. Maybe --read-size is too small");
@@ -171,7 +171,12 @@ void csv::scan_match_print_line(circbuf* c,
       circbuf_head_forward(c,sc_result.begin() + sc_result.length() - head);
       return;
     } else if(match_field < pattern_field){
-      // Match is to the left of expected column. Cannot move further for now.
+      // Match is too far left. Move to begin of expected column.
+      const char* new_pos = sc_result.begin() + sc_result.field_offsets()[pattern_field];
+      /* new_pos should always be bigger than head, so this is just a safety to catch
+	 pathological cases. */
+      assert(new_pos > head);
+      circbuf_head_forward(c,new_pos - head);
       return;
     } else {
       // Match is to the right of expected column. Moving to next newline is safe. 
