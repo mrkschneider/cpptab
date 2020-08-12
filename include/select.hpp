@@ -96,7 +96,7 @@ namespace csv {
       onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
 
       OnigErrorInfo einfo;
-      std::unique_ptr<UChar[]> pattern_c = std::make_unique<UChar[]>(pattern.size());
+      auto pattern_c = boost::scoped_array<UChar>(new UChar[pattern.size()]);
       strncpy((char*)(pattern_c.get()),pattern.c_str(),pattern.size());
       int rc = onig_new(&_pattern, pattern_c.get(), pattern_c.get() + pattern.size(),
 			CSV_ONIG_SYNTAX_OPTIONS, ONIG_ENCODING_ASCII, ONIG_SYNTAX_PERL, &einfo);
