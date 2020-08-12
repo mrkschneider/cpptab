@@ -28,5 +28,14 @@ namespace csv {
     boost::regex_constants::match_any
     ;
 
+  inline const OnigOptionType CSV_ONIG_MATCH_FLAGS =
+    ONIG_OPTION_NOTBOL | ONIG_OPTION_NOTEOL
+    | ONIG_OPTION_NOT_BEGIN_STRING | ONIG_OPTION_NOT_END_STRING
+    | ONIG_OPTION_NOT_BEGIN_POSITION;
+
+  inline const OnigOptionType CSV_ONIG_SYNTAX_OPTIONS =
+    ONIG_OPTION_DEFAULT |
+    ONIG_OPTION_FIND_NOT_EMPTY;
+
 }
 #endif

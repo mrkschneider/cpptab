@@ -26,6 +26,15 @@ string normalize_regex(string regex, char delimiter){
   return s.str();
 }
 
+bool contains_special_chars(const string& regex){
+  bool match = false;
+  for(const char& c: ".[]{}()\\*+?|^$") {
+    match = regex.find(c) != string::npos;
+    if(match) return true;
+  }
+  return false;
+}
+
 Context create_context(string csv_path, uint read_size, uint buffer_size){
     if(!csv_path.empty())
       return Context(csv_path, read_size, buffer_size);
@@ -43,9 +52,10 @@ shared_ptr<Matcher> create_matcher(string regex, string matcher_type,
   shared_ptr<Matcher> r(nullptr);
 
   if(matcher_type == "regex"){
-    boost::regex pattern(regex, REGEX_SYNTAX_FLAGS);
+    /*boost::regex pattern(regex, REGEX_SYNTAX_FLAGS);
     boost::cmatch match_result;
-    r = make_shared<Regex_Matcher>(pattern,match_result,delimiter);
+    r = make_shared<Regex_Matcher>(pattern,match_result,delimiter);*/
+    r = make_shared<Onig_Regex_Matcher>(regex,delimiter);
   } else if(matcher_type == "bm"){
     r = make_shared<Boyer_Moore_Matcher>(regex,delimiter);
   } else {
@@ -120,7 +130,8 @@ void run_select(string csv_path,
     
     if(!regex.empty()) {
       matcher_type = "regex";
-      pattern = normalize_regex(regex, delimiter);
+      //pattern = normalize_regex(regex, delimiter);
+      pattern = regex;
     }
     else if(!match.empty()){
       matcher_type = "bm";
@@ -129,10 +140,14 @@ void run_select(string csv_path,
     }
     else throw runtime_error("Could not determine matcher type");
 
-    if(matcher_type == "regex"){
-      bmatcher_type = "line";
-    } else{
+    if(matcher_type == "regex" && (!(contains_special_chars(regex)))){
+      matcher_type = "bm";
+    }
+    
+    if(matcher_type == "bm" && pattern.size() > 3){
       bmatcher_type = "multiline";
+    } else {
+      bmatcher_type = "line";
     }
     
     Context c = create_context(csv_path, read_size, buffer_size);

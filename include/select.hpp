@@ -15,6 +15,7 @@
 #include <boost/algorithm/searching/boyer_moore.hpp>
 #include <circbuf.h>
 #include <linescan.h>
+#include <oniguruma.h>
 #include "../include/constants.hpp"
 
 namespace csv {
@@ -80,6 +81,43 @@ namespace csv {
     virtual bool search(const char* begin, size_t n);
     inline virtual size_t position() const { return _match_result.position();};
     inline virtual size_t size() const {return _match_result.length();};
+  };
+
+  class Onig_Regex_Matcher : public Matcher {
+  private:
+    regex_t* _pattern;
+    OnigRegion* _match_result;
+    char _delimiter;
+
+  public:
+    Onig_Regex_Matcher(std::string pattern, char delimiter){
+      OnigEncoding use_encs[1];
+      use_encs[0] = ONIG_ENCODING_ASCII;
+      onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
+
+      OnigErrorInfo einfo;
+      std::unique_ptr<UChar[]> pattern_c = std::make_unique<UChar[]>(pattern.size());
+      strncpy((char*)(pattern_c.get()),pattern.c_str(),pattern.size());
+      int rc = onig_new(&_pattern, pattern_c.get(), pattern_c.get() + pattern.size(),
+			CSV_ONIG_SYNTAX_OPTIONS, ONIG_ENCODING_ASCII, ONIG_SYNTAX_PERL, &einfo);
+      if(rc != ONIG_NORMAL){
+	char s[ONIG_MAX_ERROR_MESSAGE_LEN];
+	onig_error_code_to_str((UChar*)s, rc, &einfo);
+	throw std::runtime_error(s);
+      }
+      _match_result = onig_region_new();
+      _delimiter = delimiter;
+    }
+
+    ~Onig_Regex_Matcher(){
+      onig_region_free(_match_result, 1);
+      onig_free(_pattern);
+      onig_end();
+    }
+    
+    virtual bool search(const char* begin, size_t n);
+    inline virtual size_t position() const { return _match_result->beg[0];};
+    inline virtual size_t size() const {return _match_result->end[0] - _match_result->beg[0];};
   };
 
   class Boyer_Moore_Matcher : public Matcher {

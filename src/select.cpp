@@ -102,6 +102,23 @@ bool csv::Regex_Matcher::search(const char* begin, size_t n){
   return match;
 }
 
+bool csv::Onig_Regex_Matcher::search(const char* begin, size_t n){
+  int match = onig_search(_pattern,
+			  (const OnigUChar*) begin,
+			  (const OnigUChar*) begin+n,
+			  (const OnigUChar*) begin,
+			  (const OnigUChar*) begin+n,
+			  _match_result,CSV_ONIG_MATCH_FLAGS);
+  if(match < 0) {
+    /*OnigErrorInfo einfo;
+    char s[ONIG_MAX_ERROR_MESSAGE_LEN];
+    onig_error_code_to_str((UChar*)s, match, &einfo);
+    throw runtime_error(s);*/
+    return false;
+  }
+  return true;
+}
+
 bool csv::Boyer_Moore_Matcher::search(const char* begin, size_t n){
   const char* end = begin + n;
   boost::algorithm::boyer_moore<const char*> matcher = *_matcher;
