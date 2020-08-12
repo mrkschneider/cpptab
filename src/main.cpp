@@ -56,8 +56,18 @@ shared_ptr<Matcher> create_matcher(string regex, string matcher_type,
   return r;
 }
 
-size_t column_index(const Line_Scan& sc_result, string column){
-  
+shared_ptr<Buffer_Matcher> create_buffer_matcher(char delimiter,
+						 size_t pattern_field,
+						 bool complete_match){
+  shared_ptr<Buffer_Matcher> r(nullptr);
+
+  r = make_shared<Multiline_BMatcher>(delimiter,pattern_field,complete_match);
+
+  return r;
+}
+
+size_t column_index(const Linescan& sc_result, string column){
+
   for(size_t col=0;col<sc_result.n_fields();col++){
     string s = string(sc_result.field(col),sc_result.field_size(col));
     int rc = column.compare(s);
@@ -69,7 +79,7 @@ size_t column_index(const Line_Scan& sc_result, string column){
   throw runtime_error("Could not find matching column"); 
 }
 
-shared_ptr<Line_Scan_Printer> create_printer(const Line_Scan& sc_result, char delimiter,
+shared_ptr<Line_Scan_Printer> create_printer(const Linescan& sc_result, char delimiter,
 					     vector<string> out_columns){
   shared_ptr<Line_Scan_Printer> r(nullptr);
   if(out_columns.empty()) {
@@ -115,22 +125,23 @@ void run_select(string csv_path,
     
     Context c = create_context(csv_path, read_size, buffer_size);
     circbuf* cbuf = c.cbuf();
-    linescan* lscan = c.lscan();
-    Line_Scan sc_result;
+    Linescan lscan;
 
-    scan_header(cbuf, delimiter, lscan, sc_result);
+    scan_header(cbuf, delimiter, lscan);
 
     shared_ptr<Matcher> matcher = create_matcher(pattern, matcher_type, delimiter);
-    shared_ptr<Line_Scan_Printer> printer = create_printer(sc_result, delimiter, out_columns);
+    shared_ptr<Line_Scan_Printer> printer = create_printer(lscan, delimiter, out_columns);
 
-    printer->print(sc_result);
+    printer->print(lscan);
 
-    size_t col = column_index(sc_result, column);
+    size_t col = column_index(lscan, column);
 
-    char* head = circbuf_head_forward(cbuf, sc_result.length());
+    shared_ptr<Buffer_Matcher> bmatcher = create_buffer_matcher(delimiter, col, complete_match);
+
+    char* head = circbuf_head_forward(cbuf, lscan.length());
     while(head[0] != '\0'){
-      scan_match_print_line(cbuf,delimiter,*matcher,col,
-                            complete_match,lscan,sc_result,*printer);
+      bool match = bmatcher->search(cbuf, *matcher, lscan);
+      if(match) printer->print(lscan);
       head = circbuf_head(cbuf);
     }
 
@@ -144,21 +155,20 @@ void run_cut(string csv_path,
 	     size_t buffer_size){
   Context c = create_context(csv_path, read_size, buffer_size);
   circbuf* cbuf = c.cbuf();
-  linescan* lscan = c.lscan();
-  Line_Scan sc_result;
+  Linescan lscan;
 
-  scan_header(cbuf, delimiter, lscan, sc_result);
+  scan_header(cbuf, delimiter, lscan);
 
-  shared_ptr<Line_Scan_Printer> printer = create_printer(sc_result, delimiter, out_columns);
-  printer->print(sc_result);
+  shared_ptr<Line_Scan_Printer> printer = create_printer(lscan, delimiter, out_columns);
+  printer->print(lscan);
 
-  char* head = circbuf_head_forward(cbuf, sc_result.length());
+  char* head = circbuf_head_forward(cbuf, lscan.length());
   while(head[0] != '\0'){
     char* del = simple_scan_right(head,read_size,delimiter);
     if(del==nullptr) throw runtime_error("Could not find delimiter in line");
-    scan(head,read_size,NL,delimiter,lscan,sc_result);
-    printer->print(sc_result);
-    head = circbuf_head_forward(cbuf, sc_result.length());
+    scan(head,read_size,delimiter,lscan);
+    printer->print(lscan);
+    head = circbuf_head_forward(cbuf, lscan.length());
   }
 
   return;

@@ -105,49 +105,88 @@ namespace csv {
     inline virtual size_t position() const { return _position;};
     inline virtual size_t size() const {return _size;};
 
+    Boyer_Moore_Matcher(const Boyer_Moore_Matcher& o) = delete; 
+    Boyer_Moore_Matcher& operator=(const Boyer_Moore_Matcher& o) = delete;
   };
-  
-  class Line_Scan {
+
+  class Linescan {
   private:
+    const size_t _offsets_size = 4096;
+    
+    linescan* _lscan;
     const char* _begin;
     size_t _length;
-    std::vector<size_t> _field_offsets;
+    std::vector<size_t> _offsets;
     size_t _match_field;
     size_t _n_fields;
-
   public:
-    Line_Scan() {
-      reset();
-    };
-    void reset() {
-      _begin = nullptr;
-      _length = 0;
-      _match_field = 0;
-      _n_fields = 0;
-      _field_offsets.clear();
-    };
-    inline const char* begin() const {return _begin;};
-    inline size_t length() const {return _length;};
-    inline size_t match_field() const {return _match_field;};
-    inline size_t n_fields() const {return _n_fields;};
-    inline const std::vector<size_t>& field_offsets() const {return _field_offsets;};
+    const char* begin() const {return _begin;};
+    size_t length() const {return _length;};
+    size_t match_field() const {return _match_field;};
+    size_t n_fields() const {return _n_fields;};
+    const std::vector<size_t>& field_offsets() const {return _offsets;};
 
     const char* field(size_t idx) const;
     size_t field_size(size_t idx) const;
     std::string str() const;
+
+    Linescan(){
+      _lscan = linescan_create(_offsets_size);
+      _offsets = std::vector<size_t>();
+      reset();
+    }
+
+    ~Linescan(){
+      linescan_free(_lscan);
+    }
     
-    friend void scan(const char* buf, uint n, char target, char delimiter,
-		     linescan* l_r, Line_Scan&);
+    void reset(){
+      _begin = nullptr;
+      _length = 0;
+      _match_field = 0;
+      _offsets.clear();
+    }
+
+    friend void scan(const char* buf, uint n, char delimiter, Linescan&);
+  };
+
+ 
+
+  class Buffer_Matcher {
+  public:
+    virtual bool search(circbuf* c,
+			Matcher& matcher,
+			Linescan& result) = 0;
+  };
+  
+  class Multiline_BMatcher : public Buffer_Matcher {
+  private:
+    char _delimiter;
+    size_t _pattern_field;
+    bool _complete_match;
+    size_t _advance_next;
+    
+  public:
+    Multiline_BMatcher(char delimiter,
+		       size_t pattern_field,
+		       bool complete_match){
+      _delimiter = delimiter;
+      _pattern_field = pattern_field;
+      _complete_match = complete_match;
+      _advance_next = 0;
+    }
+    
+    virtual bool search(circbuf* c, Matcher& matcher, Linescan& result);
   };
 
   class Line_Scan_Printer {
   public:
-    virtual void print(const Line_Scan& sc_result) const = 0;
+    virtual void print(const Linescan& sc_result) const = 0;
   };
 
   class Line_Printer : public Line_Scan_Printer {
   public:
-    virtual void print(const Line_Scan& sc_result) const;
+    virtual void print(const Linescan& sc_result) const;
   };
 
   class Field_Printer : public Line_Scan_Printer {
@@ -156,7 +195,7 @@ namespace csv {
     char _delimiter;
 
   public:
-    virtual void print(const Line_Scan& sc_result) const;
+    virtual void print(const Linescan& sc_result) const;
     Field_Printer(std::vector<size_t> fields, char delimiter) :
       _fields {fields}, _delimiter {delimiter} {};   
   };
@@ -169,20 +208,11 @@ namespace csv {
     return (char*)memchr(buf,target,n);
   }
 
-  void scan(const char* buf, uint n, char target, char delimiter, linescan* l_r,
-	    Line_Scan&);
-  void print_line(const Line_Scan& sc_result);
-  void print_fields(const Line_Scan& sc_result, char delimiter,
+  void print_line(const Linescan& sc_result);
+  void print_fields(const Linescan& sc_result, char delimiter,
                     const std::vector<size_t>& print_fields);
-  void scan_header(circbuf* c, char delimiter, linescan* l_r, Line_Scan& sc_result);
-  void scan_match_print_line(circbuf* c, char delimiter,
-			     Matcher& matcher,
-			     size_t pattern_field,
-			     bool complete_match,
-			     linescan* l_r,
-			     Line_Scan& sc_result,
-			     const Line_Scan_Printer& printer
-			     );
+  void scan_header(circbuf* c, char delimiter, Linescan& sc_result);
+  void scan(const char* buf, uint n, char delimiter, Linescan& r);
 }
 
 #endif

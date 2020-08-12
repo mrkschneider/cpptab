@@ -16,45 +16,38 @@ using namespace std;
 using namespace st;
 using namespace csv;
 
-bool csv::Regex_Matcher::search(const char* begin, size_t n){
-  bool match = boost::regex_search(begin,begin+n,_match_result,_pattern,
-				   csv::REGEX_MATCH_FLAGS);
-  return match;
+
+const char* csv::Linescan::field(size_t idx) const {
+  #ifdef CSV_DEBUG
+  if(idx > _n_fields - 1)
+    throw runtime_error("Array index too large");
+  #endif
+  return _begin + _offsets[idx];  
 }
 
-bool csv::Boyer_Moore_Matcher::search(const char* begin, size_t n){
-  const char* end = begin + n;
-  boost::algorithm::boyer_moore<const char*> matcher = *_matcher;
-  pair<const char*,const char*> r = matcher(begin,end);
-  _position = r.first - begin;
-  return r.first != r.second;
+size_t csv::Linescan::field_size(size_t idx) const {
+  #ifdef CSV_DEBUG
+  if(idx > _n_fields - 1)
+    throw runtime_error("Array index too large");
+  #endif
+  return _offsets[idx+1] - _offsets[idx] - 1;
 }
 
-string csv::Line_Scan::str() const {
+string csv::Linescan::str() const {
   ostringstream s;
   s << "Begin: " << str_ptr(_begin)					
-    << "\nLength: " << _length						
+    << "\nLength: " << _length
     << "\nMatch field: " << _match_field
     << "\nField count: " << _n_fields
-    << "\nDelimiter offsets: " << str_vector(_field_offsets);
+    << "\nDelimiter offsets: " << str_vector(_offsets);
   return s.str();
 }
 
-const char* csv::Line_Scan::field(size_t idx) const {
-  return _begin + _field_offsets[idx];
-}
-
-size_t csv::Line_Scan::field_size(size_t idx) const {
-  return _field_offsets[idx+1] - _field_offsets[idx] - 1; 
-}
-
 void csv::scan(const char* b, uint n,
-	       char target,
 	       char delimiter,
-	       linescan* lscan,
-	       Line_Scan& r
-	       ){
+	       Linescan& r){
   r.reset();
+  linescan* lscan = r._lscan;
 
   uint64_t cmask = linescan_create_mask(delimiter);
 
@@ -67,11 +60,11 @@ void csv::scan(const char* b, uint n,
   
     nl_left = lscan->buf + offset;
     for(int i=lscan->offsets_n-1;i>=1;i--){
-      r._field_offsets.push_back(lscan->offsets[i]-offset);    
+      r._offsets.push_back(lscan->offsets[i]-offset);    
     }
 
     r._begin = nl_left + 1;
-    r._match_field = r._field_offsets.size() - 1;
+    r._match_field = r._offsets.size() - 1;
   }
 
   const char* nl_right;
@@ -94,21 +87,35 @@ void csv::scan(const char* b, uint n,
 
     size_t offset = b - nl_left;
     for(size_t i=1;i<lscan->offsets_n;i++){
-      r._field_offsets.push_back(lscan->offsets[i]+offset);    
+      r._offsets.push_back(lscan->offsets[i]+offset);    
     }
   }
 
-  r._n_fields = r._field_offsets.size();
+  r._n_fields = r._offsets.size() - 1;
 
   return;
 }
 
-void csv::print_line(const Line_Scan& sc_result){
+bool csv::Regex_Matcher::search(const char* begin, size_t n){
+  bool match = boost::regex_search(begin,begin+n,_match_result,_pattern,
+				   csv::REGEX_MATCH_FLAGS);
+  return match;
+}
+
+bool csv::Boyer_Moore_Matcher::search(const char* begin, size_t n){
+  const char* end = begin + n;
+  boost::algorithm::boyer_moore<const char*> matcher = *_matcher;
+  pair<const char*,const char*> r = matcher(begin,end);
+  _position = r.first - begin;
+  return r.first != r.second;
+}
+
+void csv::print_line(const Linescan& sc_result){
   fwrite(sc_result.begin(), sizeof(char), sc_result.length()-1, stdout);
   putc('\n',stdout);
 }
 
-void csv::print_fields(const Line_Scan& sc_result, char delimiter,
+void csv::print_fields(const Linescan& sc_result, char delimiter,
 		       const vector<size_t>& print_fields){
     size_t fields_n = print_fields.size();
     for(size_t i=0;i<fields_n;i++){
@@ -120,23 +127,17 @@ void csv::print_fields(const Line_Scan& sc_result, char delimiter,
     putc('\n',stdout);
 }
 
-void csv::scan_header(circbuf* c, char delimiter, linescan* lscan, Line_Scan& sc_result){
+void csv::scan_header(circbuf* c, char delimiter, Linescan& lscan){
   size_t read_size = c->read_size;
   char* head = simple_scan_right(circbuf_head(c),read_size,delimiter);
   if(head==nullptr) throw runtime_error("Could not find delimiter in header. Maybe --read-size is too small");
-  scan(head,read_size,NL,delimiter,lscan,sc_result);
+  scan(head,read_size,delimiter,lscan);
   return;
 }
 
-void csv::scan_match_print_line(circbuf* c, 
-				char delimiter,
-				Matcher& matcher,
-				size_t pattern_field,
-				bool complete_match,
-				linescan* l_r,
-				Line_Scan& sc_result,
-				const Line_Scan_Printer& printer){
-  const char* head = circbuf_head(c);
+bool csv::Multiline_BMatcher::search(circbuf* c, Matcher& matcher, Linescan& result){
+  const char* head = circbuf_head_forward(c,_advance_next);
+  if(head[0] == '\0') return false;
   size_t read_size = c->read_size;
 
   bool match = matcher.search(head,read_size);
@@ -150,38 +151,36 @@ void csv::scan_match_print_line(circbuf* c,
     head = circbuf_head_forward(c,match_end_offset);
 
     char* match_delimiter = simple_scan_left(head, matcher.size(),
-					      delimiter);
+					      _delimiter);
     if(match_delimiter != NULL)
       throw runtime_error("Malformed input pattern: Matches delimiter");
     // Find delimiters and surrounding newlines
-    scan(head,read_size,NL,delimiter,l_r,sc_result);
-    size_t match_field = sc_result.match_field();
+    scan(head,read_size,_delimiter,result);
 
     char end = head[0];
     char start = head[-matcher.size()-1];
-    bool is_complete = (!complete_match) ||
-      ((delimiter == start || NL == start)  &&
-       (delimiter == end || NL == end));
-
-    if(match_field == pattern_field){
+    bool is_complete = (!_complete_match) ||
+      ((_delimiter == start || NL == start)  &&
+       (_delimiter == end || NL == end));
+    size_t match_field = result.match_field();
+    
+    if(match_field == _pattern_field){
       // Match is in expected column.
-      if(is_complete)
-	printer.print(sc_result);
-      // Print and move to next newline.
-      circbuf_head_forward(c,sc_result.begin() + sc_result.length() - head);
-      return;
-    } else if(match_field < pattern_field){
+      // Move to next newline.
+      _advance_next = result.begin() + result.length() - head;
+      return is_complete;
+    } else if(match_field < _pattern_field){
       // Match is too far left. Move to begin of expected column.
-      const char* new_pos = sc_result.begin() + sc_result.field_offsets()[pattern_field];
+      const char* new_pos = result.field(_pattern_field);
       /* new_pos should always be bigger than head, so this is just a safety to catch
 	 pathological cases. */
       assert(new_pos > head);
-      circbuf_head_forward(c,new_pos - head);
-      return;
+      _advance_next = new_pos - head;
+      return false;
     } else {
       // Match is to the right of expected column. Moving to next newline is safe. 
-      circbuf_head_forward(c,sc_result.begin() + sc_result.length() - head);
-      return;
+      _advance_next = result.begin() + result.length() - head;
+      return false;
     }
   } else if(!c->finished) {
     /* No match in buffer. It is possible that there is an 
@@ -189,23 +188,25 @@ void csv::scan_match_print_line(circbuf* c,
        we skip only to the last delimiter in the buffer. This is only
        relevant as long as the circbuffer is not finished.
     */  
-    char* del_left = simple_scan_left(head+read_size,read_size,delimiter);
-    circbuf_head_forward(c,del_left - head);
-    return;
+    char* del_left = simple_scan_left(head+read_size,read_size,_delimiter);
+    _advance_next = del_left - head;
+    return false;
   } else {
     /* Partial matches at the end of the buffer are impossible once 
        circbuffer is finished. This branch makes sure that the circbuffer head
        eventually reaches the end.
      */
-    circbuf_head_forward(c,read_size);
-    return;
+    _advance_next = read_size;
+    return false;
   }
+
+  throw runtime_error("Unreachable code");
 }
 
-void csv::Line_Printer::print(const Line_Scan& sc_result) const {
+void csv::Line_Printer::print(const Linescan& sc_result) const {
   print_line(sc_result);
 }
 
-void csv::Field_Printer::print(const Line_Scan& sc_result) const {
+void csv::Field_Printer::print(const Linescan& sc_result) const {
   print_fields(sc_result,_delimiter,_fields);
 }
