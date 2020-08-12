@@ -47,17 +47,17 @@ Context create_context(string csv_path, uint read_size, uint buffer_size){
       throw runtime_error("Could not read data from file or STDIN");
 }
 
-shared_ptr<Matcher> create_matcher(string regex, string matcher_type,
+unique_ptr<Matcher> create_matcher(string regex, string matcher_type,
 				   char delimiter){
-  shared_ptr<Matcher> r(nullptr);
+  unique_ptr<Matcher> r(nullptr);
 
   if(matcher_type == "regex"){
     /*boost::regex pattern(regex, REGEX_SYNTAX_FLAGS);
     boost::cmatch match_result;
-    r = make_shared<Regex_Matcher>(pattern,match_result,delimiter);*/
-    r = make_shared<Onig_Regex_Matcher>(regex,delimiter);
+    r = make_unique<Regex_Matcher>(pattern,match_result,delimiter);*/
+    r = make_unique<Onig_Regex_Matcher>(regex,delimiter);
   } else if(matcher_type == "bm"){
-    r = make_shared<Boyer_Moore_Matcher>(regex,delimiter);
+    r = make_unique<Boyer_Moore_Matcher>(regex,delimiter);
   } else {
     cerr << "Unknown matcher type: " << matcher_type << endl;
     throw runtime_error("Invalid matcher type");
@@ -66,16 +66,16 @@ shared_ptr<Matcher> create_matcher(string regex, string matcher_type,
   return r;
 }
 
-shared_ptr<Buffer_Matcher> create_buffer_matcher(string matcher_type,
+unique_ptr<Buffer_Matcher> create_buffer_matcher(string matcher_type,
 						 char delimiter,
 						 size_t pattern_field,
 						 bool complete_match){
-  shared_ptr<Buffer_Matcher> r(nullptr);
+  unique_ptr<Buffer_Matcher> r(nullptr);
 
   if(matcher_type == "line"){
-    r = make_shared<Singleline_BMatcher>(delimiter,pattern_field,complete_match);
+    r = make_unique<Singleline_BMatcher>(delimiter,pattern_field,complete_match);
   } else if(matcher_type == "multiline"){
-    r = make_shared<Multiline_BMatcher>(delimiter,pattern_field,complete_match);
+    r = make_unique<Multiline_BMatcher>(delimiter,pattern_field,complete_match);
   }
 
   return r;
@@ -94,11 +94,11 @@ size_t column_index(const Linescan& sc_result, string column){
   throw runtime_error("Could not find matching column"); 
 }
 
-shared_ptr<Line_Scan_Printer> create_printer(const Linescan& sc_result, char delimiter,
+unique_ptr<Line_Scan_Printer> create_printer(const Linescan& sc_result, char delimiter,
 					     vector<string> out_columns){
-  shared_ptr<Line_Scan_Printer> r(nullptr);
+  unique_ptr<Line_Scan_Printer> r(nullptr);
   if(out_columns.empty()) {
-    r = make_shared<Line_Printer>();
+    r = make_unique<Line_Printer>();
     return r;
   }
   vector<size_t> idxs;
@@ -106,7 +106,7 @@ shared_ptr<Line_Scan_Printer> create_printer(const Linescan& sc_result, char del
     size_t idx = column_index(sc_result,column);
     idxs.push_back(idx);
   }
-  r = make_shared<Field_Printer>(idxs,delimiter);
+  r = make_unique<Field_Printer>(idxs,delimiter);
   return r;
 }
 
@@ -156,14 +156,14 @@ void run_select(string csv_path,
 
     scan_header(cbuf, delimiter, lscan);
 
-    shared_ptr<Matcher> matcher = create_matcher(pattern, matcher_type, delimiter);
-    shared_ptr<Line_Scan_Printer> printer = create_printer(lscan, delimiter, out_columns);
+    unique_ptr<Matcher> matcher = create_matcher(pattern, matcher_type, delimiter);
+    unique_ptr<Line_Scan_Printer> printer = create_printer(lscan, delimiter, out_columns);
 
     printer->print(lscan);
 
     size_t col = column_index(lscan, column);
 
-    shared_ptr<Buffer_Matcher> bmatcher = create_buffer_matcher(bmatcher_type,
+    unique_ptr<Buffer_Matcher> bmatcher = create_buffer_matcher(bmatcher_type,
 								delimiter, col, complete_match);
 
     char* head = circbuf_head_forward(cbuf, lscan.length());
@@ -187,7 +187,7 @@ void run_cut(string csv_path,
 
   scan_header(cbuf, delimiter, lscan);
 
-  shared_ptr<Line_Scan_Printer> printer = create_printer(lscan, delimiter, out_columns);
+  unique_ptr<Line_Scan_Printer> printer = create_printer(lscan, delimiter, out_columns);
   printer->print(lscan);
 
   char* head = circbuf_head_forward(cbuf, lscan.length());

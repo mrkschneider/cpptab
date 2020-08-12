@@ -65,6 +65,8 @@ namespace csv {
     virtual bool search(const char* begin, size_t n) = 0;
     virtual size_t position() const = 0;
     virtual size_t size() const = 0;
+
+    virtual ~Matcher(){};
   };
 
   class Regex_Matcher : public Matcher {
@@ -195,6 +197,7 @@ namespace csv {
     virtual bool search(circbuf* c,
 			Matcher& matcher,
 			Linescan& result) = 0;
+    virtual ~Buffer_Matcher(){};
   };
   
   class Multiline_BMatcher : public Buffer_Matcher {
@@ -239,6 +242,7 @@ namespace csv {
   class Line_Scan_Printer {
   public:
     virtual void print(const Linescan& sc_result) const = 0;
+    virtual ~Line_Scan_Printer(){};
   };
 
   class Line_Printer : public Line_Scan_Printer {
