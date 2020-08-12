@@ -179,6 +179,25 @@ namespace csv {
     virtual bool search(circbuf* c, Matcher& matcher, Linescan& result);
   };
 
+  class Singleline_BMatcher : public Buffer_Matcher {
+  private:
+    char _delimiter;
+    size_t _pattern_field;
+    bool _complete_match;
+    size_t _advance_next;
+
+  public:
+    Singleline_BMatcher(char delimiter,
+			size_t pattern_field,
+			bool complete_match){
+      _delimiter = delimiter;
+      _pattern_field = pattern_field;
+      _complete_match = complete_match;
+      _advance_next = 0;
+    }
+    virtual bool search(circbuf* c, Matcher& matcher, Linescan& result);
+  };
+
   class Line_Scan_Printer {
   public:
     virtual void print(const Linescan& sc_result) const = 0;

@@ -56,12 +56,17 @@ shared_ptr<Matcher> create_matcher(string regex, string matcher_type,
   return r;
 }
 
-shared_ptr<Buffer_Matcher> create_buffer_matcher(char delimiter,
+shared_ptr<Buffer_Matcher> create_buffer_matcher(string matcher_type,
+						 char delimiter,
 						 size_t pattern_field,
 						 bool complete_match){
   shared_ptr<Buffer_Matcher> r(nullptr);
 
-  r = make_shared<Multiline_BMatcher>(delimiter,pattern_field,complete_match);
+  if(matcher_type == "line"){
+    r = make_shared<Singleline_BMatcher>(delimiter,pattern_field,complete_match);
+  } else if(matcher_type == "multiline"){
+    r = make_shared<Multiline_BMatcher>(delimiter,pattern_field,complete_match);
+  }
 
   return r;
 }
@@ -111,6 +116,7 @@ void run_select(string csv_path,
 		size_t buffer_size){
     string pattern;
     string matcher_type;
+    string bmatcher_type;
     
     if(!regex.empty()) {
       matcher_type = "regex";
@@ -122,6 +128,12 @@ void run_select(string csv_path,
       complete_match = true;
     }
     else throw runtime_error("Could not determine matcher type");
+
+    if(matcher_type == "regex"){
+      bmatcher_type = "line";
+    } else{
+      bmatcher_type = "multiline";
+    }
     
     Context c = create_context(csv_path, read_size, buffer_size);
     circbuf* cbuf = c.cbuf();
@@ -136,7 +148,8 @@ void run_select(string csv_path,
 
     size_t col = column_index(lscan, column);
 
-    shared_ptr<Buffer_Matcher> bmatcher = create_buffer_matcher(delimiter, col, complete_match);
+    shared_ptr<Buffer_Matcher> bmatcher = create_buffer_matcher(bmatcher_type,
+								delimiter, col, complete_match);
 
     char* head = circbuf_head_forward(cbuf, lscan.length());
     while(head[0] != '\0'){
@@ -170,7 +183,6 @@ void run_cut(string csv_path,
     printer->print(lscan);
     head = circbuf_head_forward(cbuf, lscan.length());
   }
-
   return;
 }
 

@@ -203,6 +203,23 @@ bool csv::Multiline_BMatcher::search(circbuf* c, Matcher& matcher, Linescan& res
   throw runtime_error("Unreachable code");
 }
 
+bool csv::Singleline_BMatcher::search(circbuf* c, Matcher& matcher,
+				      Linescan& result){
+  size_t read_size = c->read_size;
+  const char* head = circbuf_head_forward(c,_advance_next);
+  if(head[0] == '\0') return false;
+  scan(head,read_size,_delimiter,result);
+
+  const char* match_field = result.field(_pattern_field);
+  size_t match_field_size = result.field_size(_pattern_field);
+
+  bool match = matcher.search(match_field, match_field_size);
+  bool is_complete = !(_complete_match) || match_field_size == matcher.size();
+
+  _advance_next = result.length();
+  return match && is_complete;  
+}
+
 void csv::Line_Printer::print(const Linescan& sc_result) const {
   print_line(sc_result);
 }
