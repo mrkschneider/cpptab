@@ -1,30 +1,16 @@
 
-#include <select.hpp>
+#include <poll.h>
 #include <boost/regex.hpp>
+
+#include <select.hpp>
 #include <CLI/CLI.hpp>
 #include "../include/st.hpp"
 #include "../include/constants.hpp"
-#include <poll.h>
+#include "../include/error.hpp"
 
 using namespace std;
 using namespace st;
 using namespace csv;
-
-string normalize_regex(string regex, char delimiter){
-  ostringstream s;
-  for(size_t i=0;i<regex.size();i++){
-    char c = regex[i];
-    if(c=='\\'){
-      i++;
-      continue;
-    } else if(c=='.'){
-      s << "[^" << delimiter << "]";
-    } else {
-      s << c;
-    }
-  }
-  return s.str();
-}
 
 bool contains_special_chars(const string& regex){
   bool match = false;
@@ -35,7 +21,7 @@ bool contains_special_chars(const string& regex){
   return false;
 }
 
-Circbuf create_circbuf(string csv_path, uint read_size, uint buffer_size){
+Circbuf create_circbuf(string csv_path, size_t read_size, size_t buffer_size){
     if(!csv_path.empty())
       return Circbuf(csv_path, read_size, buffer_size);
 
@@ -95,7 +81,7 @@ size_t column_index(const Linescan& sc_result, string column){
 }
 
 unique_ptr<Linescan_Printer> create_printer(const Linescan& sc_result, char delimiter,
-					     vector<string> out_columns){
+					     const vector<string>& out_columns){
   unique_ptr<Linescan_Printer> r(nullptr);
   if(out_columns.empty()) {
     r = make_unique<Line_Printer>();
@@ -110,7 +96,7 @@ unique_ptr<Linescan_Printer> create_printer(const Linescan& sc_result, char deli
   return r;
 }
 
-char str2char(string s){
+inline char str2char(string s){
   if(s.size()!=1) throw runtime_error("Cannot convert string to char: " + s);
   return s[0];
 }
@@ -130,7 +116,6 @@ void run_select(string csv_path,
     
     if(!regex.empty()) {
       matcher_type = "regex";
-      //pattern = normalize_regex(regex, delimiter);
       pattern = regex;
     }
     else if(!match.empty()){
@@ -153,7 +138,7 @@ void run_select(string csv_path,
     Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
     Linescan lscan;
 
-    scan_header(cbuf, delimiter, lscan);
+    lscan.do_scan_header(cbuf.head(), cbuf.read_size(), delimiter);
 
     unique_ptr<Matcher> matcher = create_matcher(pattern, matcher_type, delimiter);
     unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
@@ -167,7 +152,7 @@ void run_select(string csv_path,
 
     char* head = cbuf.advance_head(lscan.length());
     while(head[0] != '\0'){
-      bool match = bmatcher->search(cbuf, *matcher, lscan);
+      bool match = bmatcher->do_search(cbuf, *matcher, lscan);
       if(match) printer->print(lscan);
       head = cbuf.head();
     }
@@ -183,7 +168,7 @@ void run_cut(string csv_path,
   Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
   Linescan lscan;
 
-  scan_header(cbuf, delimiter, lscan);
+  lscan.do_scan_header(cbuf.head(), cbuf.read_size(), delimiter);
 
   unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
   printer->print(lscan);
@@ -208,7 +193,7 @@ int main(int argc, const char* argv[]){
 
     CLI::App app{"CppCsv"};
     
-    uint read_size = 4096;
+    size_t read_size = 4096 * 4;
     string column = "";
     string regex = "";
     string match = "";
@@ -219,8 +204,9 @@ int main(int argc, const char* argv[]){
 
     app.add_option("-d,--delimiter",delimiter_str,
 		   "Column delimiter (default '" + delimiter_str + "')");
-    app.add_option("--read-size",read_size,"Size of sequential buffer reads (default 4kb)")
-      ->transform(CLI::AsSizeValue(false));
+    app.add_option("--read-size",read_size,"Size of sequential buffer reads (default 16kb)")
+      ->transform(CLI::AsSizeValue(false))
+      ->check(CLI::PositiveNumber);
 
     auto select_cmd = app.add_subcommand("select");
     select_cmd->add_option("-c,--column",column,"Column to match")->required();
@@ -245,7 +231,7 @@ int main(int argc, const char* argv[]){
     app.require_subcommand(1);
     CLI11_PARSE(app, argc, argv);
 
-    uint buffer_size = read_size * 1000;
+    size_t buffer_size = read_size * 1000;
     char delimiter = str2char(delimiter_str);
 
     if(select_cmd->parsed()){
@@ -260,7 +246,7 @@ int main(int argc, const char* argv[]){
     
     fflush(stdout);
   } catch(const std::exception& e){
-    std::cerr << "ERROR: " << e.what() << std::endl;
+    exit_error(e.what());
     return 1;
   }
   

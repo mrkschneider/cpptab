@@ -17,6 +17,7 @@
 #include <linescan.h>
 #include <oniguruma.h>
 #include "../include/constants.hpp"
+#include "../include/error.hpp"
 
 namespace csv {
 
@@ -64,7 +65,7 @@ namespace csv {
 
   class Matcher {
   public:
-    virtual bool search(const char* begin, size_t n) = 0;
+    virtual bool do_search(const char* begin, size_t n) = 0;
     virtual size_t position() const = 0;
     virtual size_t size() const = 0;
 
@@ -82,19 +83,21 @@ namespace csv {
 		  char delimiter) :
       _pattern { pattern }, _match_result { match_result }, _delimiter {delimiter} {};
     
-    bool search(const char* begin, size_t n) override;
+    bool do_search(const char* begin, size_t n) override;
     size_t position() const override { return _match_result.position();};
     size_t size() const override {return _match_result.length();};
   };
 
   class Onig_Regex_Matcher : public Matcher {
   private:
-    regex_t* _pattern;
+    const char _delimiter;
     OnigRegion* _match_result;
-    char _delimiter;
+    regex_t* _pattern;
 
   public:
-    Onig_Regex_Matcher(std::string pattern, char delimiter){
+    Onig_Regex_Matcher(std::string pattern, char delimiter) :
+      _delimiter {delimiter}
+    {
       OnigEncoding use_encs[1];
       use_encs[0] = ONIG_ENCODING_ASCII;
       onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
@@ -107,10 +110,11 @@ namespace csv {
       if(rc != ONIG_NORMAL){
 	char s[ONIG_MAX_ERROR_MESSAGE_LEN];
 	onig_error_code_to_str((UChar*)s, rc, &einfo);
-	throw std::runtime_error(s);
+	/* No exception thrown from constructor - potential memory
+	   leak as destructor would never be called. */
+	csv::exit_error(s);
       }
       _match_result = onig_region_new();
-      _delimiter = delimiter;
     }
 
     ~Onig_Regex_Matcher(){
@@ -119,7 +123,7 @@ namespace csv {
       onig_end();
     }
     
-    bool search(const char* begin, size_t n) override;
+    bool do_search(const char* begin, size_t n) override;
     size_t position() const override { return _match_result->beg[0];};
     size_t size() const override {return _match_result->end[0] - _match_result->beg[0] - 1;}; 
 
@@ -129,24 +133,25 @@ namespace csv {
 
   class Boyer_Moore_Matcher : public Matcher {
   private:
-    std::string _pattern;
-    char _delimiter;
-    boost::scoped_ptr<boost::algorithm::boyer_moore<const char*>> _matcher;
+    const std::string _pattern;
+    const size_t _size;
+    const char _delimiter;
     size_t _position;
-    size_t _size;
+    boost::scoped_ptr<boost::algorithm::boyer_moore<const char*>> _matcher;
 
   public:
-    Boyer_Moore_Matcher(std::string pattern, char delimiter) {
-      _pattern = pattern;
-      _size = pattern.size();
+    Boyer_Moore_Matcher(std::string pattern, char delimiter) :
+      _pattern {pattern},
+      _size {pattern.size()},
+      _delimiter {delimiter}
+    {
       _position = 0;
-      _delimiter = delimiter;
       const char* begin = _pattern.c_str();
       const char* end = begin + _size;
       _matcher.reset(new boost::algorithm::boyer_moore<const char*>(begin,end));
     };
 
-    bool search(const char* begin, size_t n) override;
+    bool do_search(const char* begin, size_t n) override;
     size_t position() const override { return _position;};
     size_t size() const override {return _size;};
 
@@ -177,7 +182,9 @@ namespace csv {
     size_t field_size(size_t idx) const;
     std::string str() const;
 
-    void do_scan(const char* buf, uint n, char delimiter);
+    void do_scan(const char* buf, size_t n, char delimiter);
+    void do_scan_header(const char* buf, size_t n, char delimiter);
+
     void set_crnl(bool crnl) { _crnl = crnl; };
     void adjust_for_crnl() { _offsets[_offsets.size()-1]--;};
 
@@ -205,49 +212,46 @@ namespace csv {
 
   class Buffer_Matcher {
   public:
-    virtual bool search(Circbuf& c,
-			Matcher& matcher,
-			Linescan& result) = 0;
+    virtual bool do_search(Circbuf& c,
+			   Matcher& matcher,
+			   Linescan& result) = 0;
     virtual ~Buffer_Matcher(){};
   };
   
   class Multiline_BMatcher : public Buffer_Matcher {
   private:
-    char _delimiter;
-    size_t _pattern_field;
-    bool _complete_match;
+    const char _delimiter;
+    const size_t _pattern_field;
+    const bool _complete_match;
     size_t _advance_next;
     
   public:
     Multiline_BMatcher(char delimiter,
 		       size_t pattern_field,
-		       bool complete_match){
-      _delimiter = delimiter;
-      _pattern_field = pattern_field;
-      _complete_match = complete_match;
-      _advance_next = 0;
-    }
-    
-    bool search(Circbuf& c, Matcher& matcher, Linescan& result) override;
+		       bool complete_match) :
+      _delimiter {delimiter},
+      _pattern_field {pattern_field},
+      _complete_match {complete_match},
+      _advance_next {0} {};
+    bool do_search(Circbuf& c, Matcher& matcher, Linescan& result) override;
   };
 
   class Singleline_BMatcher : public Buffer_Matcher {
   private:
-    char _delimiter;
-    size_t _pattern_field;
-    bool _complete_match;
+    const char _delimiter;
+    const size_t _pattern_field;
+    const bool _complete_match;
     size_t _advance_next;
 
   public:
     Singleline_BMatcher(char delimiter,
 			size_t pattern_field,
-			bool complete_match){
-      _delimiter = delimiter;
-      _pattern_field = pattern_field;
-      _complete_match = complete_match;
-      _advance_next = 0;
-    }
-    bool search(Circbuf& c, Matcher& matcher, Linescan& result) override;
+			bool complete_match) :
+      _delimiter {delimiter},
+      _pattern_field {pattern_field},
+      _complete_match {complete_match},
+      _advance_next {0} {};
+    bool do_search(Circbuf& c, Matcher& matcher, Linescan& result) override;
   };
 
   class Linescan_Printer {
@@ -263,8 +267,8 @@ namespace csv {
 
   class Field_Printer : public Linescan_Printer {
   private:
-    std::vector<size_t> _fields;
-    char _delimiter;
+    const std::vector<size_t> _fields;
+    const char _delimiter;
 
   public:
     void print(const Linescan& sc_result) const override;
@@ -280,7 +284,6 @@ namespace csv {
     return (char*)memchr(buf,target,n);
   }
 
-  void scan_header(Circbuf& c, char delimiter, Linescan& sc_result);
 }
 
 #endif

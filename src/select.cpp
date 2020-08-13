@@ -42,7 +42,7 @@ string csv::Linescan::str() const {
   return s.str();
 }
 
-void csv::Linescan::do_scan(const char* b, uint n,
+void csv::Linescan::do_scan(const char* b, size_t n,
 			    char delimiter){
   this->reset();
   uint64_t cmask = linescan_create_mask(delimiter);
@@ -93,13 +93,13 @@ void csv::Linescan::do_scan(const char* b, uint n,
   return;
 }
 
-bool csv::Regex_Matcher::search(const char* begin, size_t n){
+bool csv::Regex_Matcher::do_search(const char* begin, size_t n){
   bool match = boost::regex_search(begin,begin+n,_match_result,_pattern,
 				   csv::REGEX_MATCH_FLAGS);
   return match;
 }
 
-bool csv::Onig_Regex_Matcher::search(const char* begin, size_t n){
+bool csv::Onig_Regex_Matcher::do_search(const char* begin, size_t n){
   int match = onig_search(_pattern,
 			  (const OnigUChar*) begin,
 			  (const OnigUChar*) begin+n,
@@ -117,7 +117,7 @@ bool csv::Onig_Regex_Matcher::search(const char* begin, size_t n){
   return true;
 }
 
-bool csv::Boyer_Moore_Matcher::search(const char* begin, size_t n){
+bool csv::Boyer_Moore_Matcher::do_search(const char* begin, size_t n){
   const char* end = begin + n;
   boost::algorithm::boyer_moore<const char*> matcher = *_matcher;
   pair<const char*,const char*> r = matcher(begin,end);
@@ -125,27 +125,26 @@ bool csv::Boyer_Moore_Matcher::search(const char* begin, size_t n){
   return r.first != r.second;
 }
 
-void csv::scan_header(Circbuf& c, char delimiter, Linescan& lscan){
-  size_t read_size = c.read_size();
-  char* head = simple_scan_right(c.head(),read_size,delimiter);
+void csv::Linescan::do_scan_header(const char* buf, size_t n,
+				   char delimiter){
+  char* head = simple_scan_right(buf,n,delimiter);
   if(head==nullptr) throw runtime_error("Could not find delimiter in header. Maybe --read-size is too small");
-  
-  lscan.do_scan(head,read_size,delimiter);
-
-  if((lscan.begin() + lscan.length()-2)[0] == '\r'){
-    lscan.set_crnl(true);
-    lscan.adjust_for_crnl();
-  }
     
+  this->do_scan(head,n - (head - buf),delimiter);
+
+  if((this->begin() + this->length()-2)[0] == '\r'){
+    this->set_crnl(true);
+    this->adjust_for_crnl();
+  }
   return;
 }
 
-bool csv::Multiline_BMatcher::search(Circbuf& c, Matcher& matcher, Linescan& result){
+bool csv::Multiline_BMatcher::do_search(Circbuf& c, Matcher& matcher, Linescan& result){
   const char* head = c.advance_head(_advance_next);
   if(head[0] == '\0') return false;
   size_t read_size = c.read_size();
 
-  bool match = matcher.search(head,read_size);
+  bool match = matcher.do_search(head,read_size);
 
   if(match){
     /* Regex matches in the buffer. 
@@ -204,7 +203,7 @@ bool csv::Multiline_BMatcher::search(Circbuf& c, Matcher& matcher, Linescan& res
   throw runtime_error("Unreachable code");
 }
 
-bool csv::Singleline_BMatcher::search(Circbuf& c, Matcher& matcher,
+bool csv::Singleline_BMatcher::do_search(Circbuf& c, Matcher& matcher,
 				      Linescan& result){
   size_t read_size = c.read_size();
   const char* head = c.advance_head(_advance_next);
@@ -214,7 +213,7 @@ bool csv::Singleline_BMatcher::search(Circbuf& c, Matcher& matcher,
   const char* match_field = result.field(_pattern_field);
   size_t match_field_size = result.field_size(_pattern_field);
 
-  bool match = matcher.search(match_field, match_field_size);
+  bool match = matcher.do_search(match_field, match_field_size);
   bool is_complete = (!(_complete_match)) || match_field_size == matcher.size();
 
   _advance_next = result.length();
