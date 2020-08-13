@@ -35,14 +35,14 @@ bool contains_special_chars(const string& regex){
   return false;
 }
 
-Context create_context(string csv_path, uint read_size, uint buffer_size){
+Circbuf create_circbuf(string csv_path, uint read_size, uint buffer_size){
     if(!csv_path.empty())
-      return Context(csv_path, read_size, buffer_size);
+      return Circbuf(csv_path, read_size, buffer_size);
 
     struct pollfd pfd = { fileno(stdin), POLLIN };
     int rc = poll(&pfd,1,POLL_TIMEOUT);
     if(rc > 0 && pfd.revents & POLLIN)
-      return Context(stdin, read_size, buffer_size);
+      return Circbuf(stdin, read_size, buffer_size);
     else
       throw runtime_error("Could not read data from file or STDIN");
 }
@@ -150,8 +150,7 @@ void run_select(string csv_path,
       bmatcher_type = "line";
     }
     
-    Context c = create_context(csv_path, read_size, buffer_size);
-    circbuf* cbuf = c.cbuf();
+    Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
     Linescan lscan;
 
     scan_header(cbuf, delimiter, lscan);
@@ -166,11 +165,11 @@ void run_select(string csv_path,
     unique_ptr<Buffer_Matcher> bmatcher = create_buffer_matcher(bmatcher_type,
 								delimiter, col, complete_match);
 
-    char* head = circbuf_head_forward(cbuf, lscan.length());
+    char* head = cbuf.advance_head(lscan.length());
     while(head[0] != '\0'){
       bool match = bmatcher->search(cbuf, *matcher, lscan);
       if(match) printer->print(lscan);
-      head = circbuf_head(cbuf);
+      head = cbuf.head();
     }
 
     return;
@@ -181,8 +180,7 @@ void run_cut(string csv_path,
 	     vector<string> out_columns,
 	     size_t read_size,
 	     size_t buffer_size){
-  Context c = create_context(csv_path, read_size, buffer_size);
-  circbuf* cbuf = c.cbuf();
+  Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
   Linescan lscan;
 
   scan_header(cbuf, delimiter, lscan);
@@ -190,13 +188,13 @@ void run_cut(string csv_path,
   unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
   printer->print(lscan);
 
-  char* head = circbuf_head_forward(cbuf, lscan.length());
+  char* head = cbuf.advance_head(lscan.length());
   while(head[0] != '\0'){
     char* del = simple_scan_right(head,read_size,delimiter);
     if(del==nullptr) throw runtime_error("Could not find delimiter in line");
-    scan(head,read_size,delimiter,lscan);
+    lscan.do_scan(head,read_size,delimiter);
     printer->print(lscan);
-    head = circbuf_head_forward(cbuf, lscan.length());
+    head = cbuf.advance_head(lscan.length());
   }
   return;
 }

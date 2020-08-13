@@ -19,15 +19,14 @@
 #include "../include/constants.hpp"
 
 namespace csv {
-  
-  class Context {
+
+  class Circbuf {
   private:
     uint _read_size;
     uint _buffer_size;
     boost::scoped_array<char> _bytes;
     FILE* _fd;
     circbuf* _cbuf;
-    linescan* _lscan;
 
     void initialize(FILE* fd, uint read_size, uint buffer_size){
       _read_size = read_size;
@@ -36,28 +35,31 @@ namespace csv {
       _fd = fd;
       _cbuf = circbuf_create(_bytes.get(),buffer_size,read_size,_fd);
       _cbuf->bytes[read_size-1] = NL;
-      _lscan = linescan_create(read_size);
     }
   public:
-    Context(FILE* fd, uint read_size, uint buffer_size){
+    Circbuf(FILE* fd, uint read_size, uint buffer_size){
       initialize(fd, read_size, buffer_size);
     }
     
-    Context(std::string csv_path, uint read_size, uint buffer_size){ 
+    Circbuf(std::string csv_path, uint read_size, uint buffer_size){ 
       FILE* fd = fopen(csv_path.c_str(),"r");
       initialize(fd, read_size, buffer_size);
     }
 
-    ~Context(){
-      linescan_free(_lscan);
+    ~Circbuf(){
       circbuf_free(_cbuf);
       fclose(_fd);
     }
-    Context(const Context& o) = delete; 
-    Context& operator=(const Context& o) = delete;
+
+    char* head() const {return circbuf_head(_cbuf);};
+    bool finished() const {return _cbuf->finished;};
+    size_t read_size() const {return _read_size;};
+
+    char* advance_head(size_t n) {return circbuf_head_forward(_cbuf,n);};
     
-    circbuf* cbuf() const {return _cbuf;};
-    linescan* lscan() const {return _lscan;};
+    Circbuf(const Circbuf& o) = delete; 
+    Circbuf& operator=(const Circbuf& o) = delete;
+    
   };
 
   class Matcher {
@@ -175,6 +177,10 @@ namespace csv {
     size_t field_size(size_t idx) const;
     std::string str() const;
 
+    void do_scan(const char* buf, uint n, char delimiter);
+    void set_crnl(bool crnl) { _crnl = crnl; };
+    void adjust_for_crnl() { _offsets[_offsets.size()-1]--;};
+
     Linescan(){
       _lscan = linescan_create(_offsets_size);
       _offsets = std::vector<size_t>();
@@ -193,17 +199,13 @@ namespace csv {
       _offsets.clear();
     }
 
-    friend void scan(const char* buf, uint n, char delimiter, Linescan&);
-    friend void set_crnl(bool crnl, Linescan&);
-    friend void adjust_for_crnl(Linescan&);
-
     Linescan(const Linescan& o) = delete; 
     Linescan& operator=(const Linescan& o) = delete;
   };
 
   class Buffer_Matcher {
   public:
-    virtual bool search(circbuf* c,
+    virtual bool search(Circbuf& c,
 			Matcher& matcher,
 			Linescan& result) = 0;
     virtual ~Buffer_Matcher(){};
@@ -226,7 +228,7 @@ namespace csv {
       _advance_next = 0;
     }
     
-    bool search(circbuf* c, Matcher& matcher, Linescan& result) override;
+    bool search(Circbuf& c, Matcher& matcher, Linescan& result) override;
   };
 
   class Singleline_BMatcher : public Buffer_Matcher {
@@ -245,7 +247,7 @@ namespace csv {
       _complete_match = complete_match;
       _advance_next = 0;
     }
-    bool search(circbuf* c, Matcher& matcher, Linescan& result) override;
+    bool search(Circbuf& c, Matcher& matcher, Linescan& result) override;
   };
 
   class Linescan_Printer {
@@ -278,13 +280,7 @@ namespace csv {
     return (char*)memchr(buf,target,n);
   }
 
-  void print_line(const Linescan& sc_result);
-  void print_fields(const Linescan& sc_result, char delimiter,
-                    const std::vector<size_t>& print_fields);
-  void scan_header(circbuf* c, char delimiter, Linescan& sc_result);
-  void scan(const char* buf, uint n, char delimiter, Linescan& r);
-  void set_crnl(bool crnl, Linescan& r);
-  void adjust_for_crnl(Linescan& r);
+  void scan_header(Circbuf& c, char delimiter, Linescan& sc_result);
 }
 
 #endif

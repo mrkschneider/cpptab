@@ -16,7 +16,6 @@ using namespace std;
 using namespace st;
 using namespace csv;
 
-
 const char* csv::Linescan::field(size_t idx) const {
   #ifdef CSV_DEBUG
   if(idx > _n_fields - 1)
@@ -43,66 +42,54 @@ string csv::Linescan::str() const {
   return s.str();
 }
 
-void csv::set_crnl(bool crnl, Linescan& r){
-  r._crnl = crnl;
-}
-
-void csv::adjust_for_crnl(Linescan& r) {
-  //r._length--;
-  r._offsets[r._offsets.size()-1]--;
-}
-
-void csv::scan(const char* b, uint n,
-	       char delimiter,
-	       Linescan& r){
-  r.reset();
-  linescan* lscan = r._lscan;
-
+void csv::Linescan::do_scan(const char* b, uint n,
+			    char delimiter){
+  this->reset();
   uint64_t cmask = linescan_create_mask(delimiter);
 
   const char* nl_left;
   {
-    int rc = linescan_rfind(b-n,cmask,n,lscan);
+    int rc = linescan_rfind(b-n,cmask,n,_lscan);
     
     if(rc < 1) throw runtime_error("Could not find left newline. Maybe --read-size is too small.");
-    size_t offset = lscan->offsets[lscan->offsets_n-1];
+    size_t offset = _lscan->offsets[_lscan->offsets_n-1];
   
-    nl_left = lscan->buf + offset;
-    for(int i=lscan->offsets_n-1;i>=1;i--){
-      r._offsets.push_back(lscan->offsets[i]-offset);    
+    nl_left = _lscan->buf + offset;
+    for(int i=_lscan->offsets_n-1;i>=1;i--){
+      _offsets.push_back(_lscan->offsets[i]-offset);    
     }
 
-    r._begin = nl_left + 1;
-    r._match_field = r._offsets.size() - 1;
+    _begin = nl_left + 1;
+    _match_field = _offsets.size() - 1;
   }
 
   const char* nl_right;
   {
-    int rc = linescan_find(b,cmask,n,lscan); 
+    int rc = linescan_find(b,cmask,n,_lscan); 
 
     if(rc > 0) {
-      nl_right = lscan->buf + lscan->size - 1;
+      nl_right = _lscan->buf + _lscan->size - 1;
     } else if(rc == 0) {
       char* nl = simple_scan_right(b,n,'\0');
       if(nl==nullptr) throw runtime_error("Could not find right newline. Maybe --read-size is too small");
       nl[0] = NL;
       nl_right = nl;
-      lscan->offsets[lscan->offsets_n] = nl_right - b;
-      lscan->offsets_n++;
+      _lscan->offsets[_lscan->offsets_n] = nl_right - b;
+      _lscan->offsets_n++;
     } else {
       throw runtime_error("Could not find right newline. Maybe --read-size is too small");
     } 
-    r._length = nl_right - nl_left;
+    _length = nl_right - nl_left;
 
     size_t offset = b - nl_left;
-    for(size_t i=1;i<lscan->offsets_n;i++){
-      r._offsets.push_back(lscan->offsets[i]+offset);    
+    for(size_t i=1;i<_lscan->offsets_n;i++){
+      _offsets.push_back(_lscan->offsets[i]+offset);    
     }
 
-    if(rc > 0 && r._crnl) adjust_for_crnl(r);
+    if(rc > 0 && _crnl) this->adjust_for_crnl();
   }
 
-  r._n_fields = r._offsets.size() - 1;
+  _n_fields = _offsets.size() - 1;
   return;
 }
 
@@ -138,45 +125,25 @@ bool csv::Boyer_Moore_Matcher::search(const char* begin, size_t n){
   return r.first != r.second;
 }
 
-void csv::print_line(const Linescan& sc_result){
-  fwrite(sc_result.begin(), sizeof(char), sc_result.length()-1, stdout);
-  putc('\n',stdout);
-}
-
-void csv::print_fields(const Linescan& sc_result, char delimiter,
-		       const vector<size_t>& print_fields){
-    size_t fields_n = print_fields.size();
-    for(size_t i=0;i<fields_n;i++){
-      size_t field = print_fields[i];
-      fwrite(sc_result.field(field), sizeof(char), sc_result.field_size(field), stdout);	
-      if(i<fields_n-1)
-	putc(delimiter,stdout);
-    }
-    if(sc_result.crnl()){
-      putc('\r',stdout);
-    }
-    putc('\n',stdout);
-}
-
-void csv::scan_header(circbuf* c, char delimiter, Linescan& lscan){
-  size_t read_size = c->read_size;
-  char* head = simple_scan_right(circbuf_head(c),read_size,delimiter);
+void csv::scan_header(Circbuf& c, char delimiter, Linescan& lscan){
+  size_t read_size = c.read_size();
+  char* head = simple_scan_right(c.head(),read_size,delimiter);
   if(head==nullptr) throw runtime_error("Could not find delimiter in header. Maybe --read-size is too small");
   
-  scan(head,read_size,delimiter,lscan);
+  lscan.do_scan(head,read_size,delimiter);
 
   if((lscan.begin() + lscan.length()-2)[0] == '\r'){
-    set_crnl(true, lscan);
-    adjust_for_crnl(lscan);
+    lscan.set_crnl(true);
+    lscan.adjust_for_crnl();
   }
     
   return;
 }
 
-bool csv::Multiline_BMatcher::search(circbuf* c, Matcher& matcher, Linescan& result){
-  const char* head = circbuf_head_forward(c,_advance_next);
+bool csv::Multiline_BMatcher::search(Circbuf& c, Matcher& matcher, Linescan& result){
+  const char* head = c.advance_head(_advance_next);
   if(head[0] == '\0') return false;
-  size_t read_size = c->read_size;
+  size_t read_size = c.read_size();
 
   bool match = matcher.search(head,read_size);
 
@@ -186,14 +153,14 @@ bool csv::Multiline_BMatcher::search(circbuf* c, Matcher& matcher, Linescan& res
     size_t match_end_offset = matcher.position() + matcher.size();
         
     // Move to end of regex match
-    head = circbuf_head_forward(c,match_end_offset);
+    head = c.advance_head(match_end_offset);
 
     char* match_delimiter = simple_scan_left(head, matcher.size(),
 					      _delimiter);
     if(match_delimiter != NULL)
       throw runtime_error("Malformed input pattern: Matches delimiter");
     // Find delimiters and surrounding newlines
-    scan(head,read_size,_delimiter,result);
+    result.do_scan(head,read_size,_delimiter);
 
     size_t match_field = result.match_field();
     
@@ -216,7 +183,7 @@ bool csv::Multiline_BMatcher::search(circbuf* c, Matcher& matcher, Linescan& res
       _advance_next = result.begin() + result.length() - head;
       return false;
     }
-  } else if(!c->finished) {
+  } else if(!c.finished()) {
     /* No match in buffer. It is possible that there is an 
        incomplete match at the end. To avoid missing a potential match,
        we skip only to the last delimiter in the buffer. This is only
@@ -237,12 +204,12 @@ bool csv::Multiline_BMatcher::search(circbuf* c, Matcher& matcher, Linescan& res
   throw runtime_error("Unreachable code");
 }
 
-bool csv::Singleline_BMatcher::search(circbuf* c, Matcher& matcher,
+bool csv::Singleline_BMatcher::search(Circbuf& c, Matcher& matcher,
 				      Linescan& result){
-  size_t read_size = c->read_size;
-  const char* head = circbuf_head_forward(c,_advance_next);
+  size_t read_size = c.read_size();
+  const char* head = c.advance_head(_advance_next);
   if(head[0] == '\0') return false;
-  scan(head,read_size,_delimiter,result);
+  result.do_scan(head,read_size,_delimiter);
 
   const char* match_field = result.field(_pattern_field);
   size_t match_field_size = result.field_size(_pattern_field);
@@ -255,9 +222,20 @@ bool csv::Singleline_BMatcher::search(circbuf* c, Matcher& matcher,
 }
 
 void csv::Line_Printer::print(const Linescan& sc_result) const {
-  print_line(sc_result);
+  fwrite(sc_result.begin(), sizeof(char), sc_result.length()-1, stdout);
+  putc('\n',stdout);
 }
 
 void csv::Field_Printer::print(const Linescan& sc_result) const {
-  print_fields(sc_result,_delimiter,_fields);
+  size_t fields_n = _fields.size();
+  for(size_t i=0;i<fields_n;i++){
+    size_t field = _fields[i];
+    fwrite(sc_result.field(field), sizeof(char), sc_result.field_size(field), stdout);	
+    if(i<fields_n-1)
+      putc(_delimiter,stdout);
+  }
+  if(sc_result.crnl()){
+    putc('\r',stdout);
+  }
+  putc('\n',stdout);
 }
