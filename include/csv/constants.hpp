@@ -1,15 +1,16 @@
 #ifndef INCLUDE_CSV_CONSTANTS_HPP_
 #define INCLUDE_CSV_CONSTANTS_HPP_
 
-#define STDOUT_SIZE 65535
-#define POLL_TIMEOUT 100
-
-#define NL '\n'
-
 #include <boost/regex.hpp>
+#include <oniguruma.h>
 
 namespace csv {
 
+  inline const size_t STDOUT_SIZE = 65535;
+  inline const size_t POLL_TIMEOUT = 100;
+  inline const char NL = '\n';
+  
+  
   inline const boost::regex_constants::syntax_option_type REGEX_SYNTAX_FLAGS =
     boost::regex_constants::perl;
 

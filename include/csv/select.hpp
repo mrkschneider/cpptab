@@ -1,23 +1,27 @@
 #ifndef INCLUDE_CSV_SELECT_HPP_
 #define INCLUDE_CSV_SELECT_HPP_
 
+#include <stdio.h>
+#include <string.h>
+
+#include <oniguruma.h>
+
+#include <circbuf.h>
+#include <linescan.h>
+
 #include <string>
 #include <vector>
 #include <map>
 #include <any>
 #include <iostream>
-#include <stdio.h>
-#include <string.h>
 #include <sstream>
 #include <boost/regex.hpp>
 #include <boost/scoped_array.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/algorithm/searching/boyer_moore.hpp>
-#include <circbuf.h>
-#include <linescan.h>
-#include <oniguruma.h>
-#include "../include/constants.hpp"
-#include "../include/error.hpp"
+
+#include <csv/constants.hpp>
+#include <csv/error.hpp>
 
 namespace csv {
 

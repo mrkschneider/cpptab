@@ -1,12 +1,13 @@
 
 #include <poll.h>
-#include <boost/regex.hpp>
 
-#include <select.hpp>
+#include <boost/regex.hpp>
 #include <CLI/CLI.hpp>
-#include "../include/st.hpp"
-#include "../include/constants.hpp"
-#include "../include/error.hpp"
+
+#include <csv/st.hpp>
+#include <csv/constants.hpp>
+#include <csv/error.hpp>
+#include <csv/select.hpp>
 
 using namespace std;
 using namespace st;

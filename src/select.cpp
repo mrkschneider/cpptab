@@ -1,16 +1,18 @@
+#include <ctype.h>
+#include <stdio.h>
+#include <string.h>
+
 #include <map>
 #include <string>
 #include <stdexcept>
 #include <vector>
 #include <fstream>
 #include <iterator>
-#include <ctype.h>
-#include <stdio.h>
-#include <string.h>
 #include <iostream>
 #include <typeinfo>
-#include <select.hpp>
-#include "../include/st.hpp"
+
+#include <csv/st.hpp>
+#include <csv/select.hpp>
 
 using namespace std;
 using namespace st;
