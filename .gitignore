@@ -9,3 +9,4 @@ testrunner
 .settings
 Makefile.env
 *.out
+opt.txt
