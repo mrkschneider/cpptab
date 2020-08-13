@@ -143,7 +143,7 @@ void csv::Linescan::do_scan_header(const char* buf, size_t n,
 
 bool csv::Multiline_BMatcher::do_search(Circbuf& c, Matcher& matcher, Linescan& result){
   const char* head = c.advance_head(_advance_next);
-  if(head[0] == '\0') return false;
+  if(c.at_eof()) return false;
   size_t read_size = c.read_size();
 
   bool match = matcher.do_search(head,read_size);
@@ -209,7 +209,7 @@ bool csv::Singleline_BMatcher::do_search(Circbuf& c, Matcher& matcher,
 				      Linescan& result){
   size_t read_size = c.read_size();
   const char* head = c.advance_head(_advance_next);
-  if(head[0] == '\0') return false;
+  if(c.at_eof()) return false;
   result.do_scan(head,read_size,_delimiter);
 
   const char* match_field = result.field(_pattern_field);

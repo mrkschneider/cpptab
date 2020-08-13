@@ -59,6 +59,7 @@ namespace csv {
     char* head() const {return circbuf_head(_cbuf);};
     bool finished() const {return _cbuf->finished;};
     size_t read_size() const {return _read_size;};
+    bool at_eof() const {return head()[0] == '\0';};
 
     char* advance_head(size_t n) {return circbuf_head_forward(_cbuf,n);};
     

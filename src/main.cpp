@@ -13,6 +13,18 @@ using namespace std;
 using namespace st;
 using namespace csv;
 
+
+enum class Matcher_Type
+  {
+   REGEX, BOYER_MOORE
+  };
+
+enum class Buffer_Matcher_Type
+  {
+   LINE, MULTILINE
+  };
+		   
+
 bool contains_special_chars(const string& regex){
   bool match = false;
   for(const char& c: ".[]{}()\\*+?|^$") {
@@ -34,35 +46,38 @@ Circbuf create_circbuf(string csv_path, size_t read_size, size_t buffer_size){
       throw runtime_error("Could not read data from file or STDIN");
 }
 
-unique_ptr<Matcher> create_matcher(string regex, string matcher_type,
+unique_ptr<Matcher> create_matcher(Matcher_Type matcher_type,
+				   string regex,
 				   char delimiter){
   unique_ptr<Matcher> r(nullptr);
 
-  if(matcher_type == "regex"){
-    /*boost::regex pattern(regex, REGEX_SYNTAX_FLAGS);
-    boost::cmatch match_result;
-    r = make_unique<Regex_Matcher>(pattern,match_result,delimiter);*/
+  switch(matcher_type){
+  case Matcher_Type::REGEX:
     r = make_unique<Onig_Regex_Matcher>(regex,delimiter);
-  } else if(matcher_type == "bm"){
+    break;
+  case Matcher_Type::BOYER_MOORE:
     r = make_unique<Boyer_Moore_Matcher>(regex,delimiter);
-  } else {
-    cerr << "Unknown matcher type: " << matcher_type << endl;
-    throw runtime_error("Invalid matcher type");
+    break;
+  default: throw runtime_error("Invalid matcher type");
   }
  
   return r;
 }
 
-unique_ptr<Buffer_Matcher> create_buffer_matcher(string matcher_type,
+unique_ptr<Buffer_Matcher> create_buffer_matcher(Buffer_Matcher_Type matcher_type,
 						 char delimiter,
 						 size_t pattern_field,
 						 bool complete_match){
   unique_ptr<Buffer_Matcher> r(nullptr);
 
-  if(matcher_type == "line"){
+  switch(matcher_type){
+  case Buffer_Matcher_Type::LINE:
     r = make_unique<Singleline_BMatcher>(delimiter,pattern_field,complete_match);
-  } else if(matcher_type == "multiline"){
+    break;
+  case Buffer_Matcher_Type::MULTILINE:
     r = make_unique<Multiline_BMatcher>(delimiter,pattern_field,complete_match);
+    break;
+  default: throw runtime_error("Invalid buffer matcher type");
   }
 
   return r;
@@ -112,28 +127,28 @@ void run_select(string csv_path,
 		size_t read_size,
 		size_t buffer_size){
     string pattern;
-    string matcher_type;
-    string bmatcher_type;
+    Matcher_Type matcher_type;
+    Buffer_Matcher_Type bmatcher_type;
     
     if(!regex.empty()) {
-      matcher_type = "regex";
+      matcher_type = Matcher_Type::REGEX;
       pattern = regex;
     }
     else if(!match.empty()){
-      matcher_type = "bm";
+      matcher_type = Matcher_Type::BOYER_MOORE;
       pattern = match;
       complete_match = true;
     }
     else throw runtime_error("Could not determine matcher type");
 
-    if(matcher_type == "regex" && (!(contains_special_chars(regex)))){
-      matcher_type = "bm";
+    if(matcher_type == Matcher_Type::REGEX && (!(contains_special_chars(regex)))){
+      matcher_type = Matcher_Type::BOYER_MOORE;
     }
     
-    if(matcher_type == "bm" && pattern.size() > 3){
-      bmatcher_type = "multiline";
+    if(matcher_type == Matcher_Type::BOYER_MOORE && pattern.size() > 3){
+      bmatcher_type = Buffer_Matcher_Type::MULTILINE;
     } else {
-      bmatcher_type = "line";
+      bmatcher_type = Buffer_Matcher_Type::LINE;
     }
     
     Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
@@ -141,7 +156,7 @@ void run_select(string csv_path,
 
     lscan.do_scan_header(cbuf.head(), cbuf.read_size(), delimiter);
 
-    unique_ptr<Matcher> matcher = create_matcher(pattern, matcher_type, delimiter);
+    unique_ptr<Matcher> matcher = create_matcher(matcher_type, pattern, delimiter);
     unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
 
     printer->print(lscan);
@@ -151,11 +166,10 @@ void run_select(string csv_path,
     unique_ptr<Buffer_Matcher> bmatcher = create_buffer_matcher(bmatcher_type,
 								delimiter, col, complete_match);
 
-    char* head = cbuf.advance_head(lscan.length());
-    while(head[0] != '\0'){
+    cbuf.advance_head(lscan.length());
+    while(!cbuf.at_eof()){
       bool match = bmatcher->do_search(cbuf, *matcher, lscan);
       if(match) printer->print(lscan);
-      head = cbuf.head();
     }
 
     return;
@@ -174,13 +188,13 @@ void run_cut(string csv_path,
   unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
   printer->print(lscan);
 
-  char* head = cbuf.advance_head(lscan.length());
-  while(head[0] != '\0'){
+  cbuf.advance_head(lscan.length());
+  while(!cbuf.at_eof()){
+    char* head = cbuf.head();
     char* del = simple_scan_right(head,read_size,delimiter);
     if(del==nullptr) throw runtime_error("Could not find delimiter in line");
     lscan.do_scan(head,read_size,delimiter);
     printer->print(lscan);
-    head = cbuf.advance_head(lscan.length());
   }
   return;
 }
