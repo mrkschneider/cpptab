@@ -166,6 +166,7 @@ namespace csv {
     size_t match_field() const {return _match_field;};
     size_t n_fields() const {return _n_fields;};
     const std::vector<size_t>& field_offsets() const {return _offsets;};
+    bool crnl() const {return _crnl;};
 
     const char* field(size_t idx) const;
     size_t field_size(size_t idx) const;

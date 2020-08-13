@@ -152,6 +152,9 @@ void csv::print_fields(const Linescan& sc_result, char delimiter,
       if(i<fields_n-1)
 	putc(delimiter,stdout);
     }
+    if(sc_result.crnl()){
+      putc('\r',stdout);
+    }
     putc('\n',stdout);
 }
 
