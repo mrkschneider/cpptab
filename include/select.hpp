@@ -119,7 +119,7 @@ namespace csv {
     
     virtual bool search(const char* begin, size_t n);
     inline virtual size_t position() const { return _match_result->beg[0];};
-    inline virtual size_t size() const {return _match_result->end[0] - _match_result->beg[0];};
+    inline virtual size_t size() const {return _match_result->end[0] - _match_result->beg[0] - 1;};
   };
 
   class Boyer_Moore_Matcher : public Matcher {
@@ -159,6 +159,7 @@ namespace csv {
     std::vector<size_t> _offsets;
     size_t _match_field;
     size_t _n_fields;
+    bool _crnl;
   public:
     const char* begin() const {return _begin;};
     size_t length() const {return _length;};
@@ -173,6 +174,7 @@ namespace csv {
     Linescan(){
       _lscan = linescan_create(_offsets_size);
       _offsets = std::vector<size_t>();
+      _crnl = false;
       reset();
     }
 
@@ -188,6 +190,8 @@ namespace csv {
     }
 
     friend void scan(const char* buf, uint n, char delimiter, Linescan&);
+    friend void set_crnl(bool crnl, Linescan&);
+    friend void adjust_for_crnl(Linescan&);
   };
 
  
@@ -274,6 +278,8 @@ namespace csv {
                     const std::vector<size_t>& print_fields);
   void scan_header(circbuf* c, char delimiter, Linescan& sc_result);
   void scan(const char* buf, uint n, char delimiter, Linescan& r);
+  void set_crnl(bool crnl, Linescan& r);
+  void adjust_for_crnl(Linescan& r);
 }
 
 #endif

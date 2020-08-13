@@ -43,6 +43,15 @@ string csv::Linescan::str() const {
   return s.str();
 }
 
+void csv::set_crnl(bool crnl, Linescan& r){
+  r._crnl = crnl;
+}
+
+void csv::adjust_for_crnl(Linescan& r) {
+  //r._length--;
+  r._offsets[r._offsets.size()-1]--;
+}
+
 void csv::scan(const char* b, uint n,
 	       char delimiter,
 	       Linescan& r){
@@ -72,7 +81,7 @@ void csv::scan(const char* b, uint n,
     int rc = linescan_find(b,cmask,n,lscan); 
 
     if(rc > 0) {
-        nl_right = lscan->buf + lscan->size - 1;
+      nl_right = lscan->buf + lscan->size - 1;
     } else if(rc == 0) {
       char* nl = simple_scan_right(b,n,'\0');
       if(nl==nullptr) throw runtime_error("Could not find right newline. Maybe --read-size is too small");
@@ -89,10 +98,11 @@ void csv::scan(const char* b, uint n,
     for(size_t i=1;i<lscan->offsets_n;i++){
       r._offsets.push_back(lscan->offsets[i]+offset);    
     }
+
+    if(rc > 0 && r._crnl) adjust_for_crnl(r);
   }
 
   r._n_fields = r._offsets.size() - 1;
-
   return;
 }
 
@@ -109,12 +119,13 @@ bool csv::Onig_Regex_Matcher::search(const char* begin, size_t n){
 			  (const OnigUChar*) begin,
 			  (const OnigUChar*) begin+n,
 			  _match_result,CSV_ONIG_MATCH_FLAGS);
-  if(match < 0 && match != ONIG_MISMATCH) {
+  if(match == ONIG_MISMATCH) {
+    return false;
+  } else if(match < 0) {
     OnigErrorInfo einfo;
     char s[ONIG_MAX_ERROR_MESSAGE_LEN];
     onig_error_code_to_str((UChar*)s, match, &einfo);
     throw runtime_error(s);
-    return false;
   }
   return true;
 }
@@ -148,7 +159,14 @@ void csv::scan_header(circbuf* c, char delimiter, Linescan& lscan){
   size_t read_size = c->read_size;
   char* head = simple_scan_right(circbuf_head(c),read_size,delimiter);
   if(head==nullptr) throw runtime_error("Could not find delimiter in header. Maybe --read-size is too small");
+  
   scan(head,read_size,delimiter,lscan);
+
+  if((lscan.begin() + lscan.length()-2)[0] == '\r'){
+    set_crnl(true, lscan);
+    adjust_for_crnl(lscan);
+  }
+    
   return;
 }
 
@@ -158,7 +176,7 @@ bool csv::Multiline_BMatcher::search(circbuf* c, Matcher& matcher, Linescan& res
   size_t read_size = c->read_size;
 
   bool match = matcher.search(head,read_size);
-  
+
   if(match){
     /* Regex matches in the buffer. 
        Now we need to find out whether the match is located in the correct column. */
@@ -174,17 +192,13 @@ bool csv::Multiline_BMatcher::search(circbuf* c, Matcher& matcher, Linescan& res
     // Find delimiters and surrounding newlines
     scan(head,read_size,_delimiter,result);
 
-    char end = head[0];
-    char start = head[-matcher.size()-1];
-    bool is_complete = (!_complete_match) ||
-      ((_delimiter == start || NL == start)  &&
-       (_delimiter == end || NL == end));
     size_t match_field = result.match_field();
     
     if(match_field == _pattern_field){
       // Match is in expected column.
       // Move to next newline.
       _advance_next = result.begin() + result.length() - head;
+      bool is_complete = (!(_complete_match)) || matcher.size() == result.field_size(match_field); 
       return is_complete;
     } else if(match_field < _pattern_field){
       // Match is too far left. Move to begin of expected column.
@@ -231,7 +245,7 @@ bool csv::Singleline_BMatcher::search(circbuf* c, Matcher& matcher,
   size_t match_field_size = result.field_size(_pattern_field);
 
   bool match = matcher.search(match_field, match_field_size);
-  bool is_complete = !(_complete_match) || match_field_size == matcher.size();
+  bool is_complete = (!(_complete_match)) || match_field_size == matcher.size();
 
   _advance_next = result.length();
   return match && is_complete;  
