@@ -167,7 +167,7 @@ void run_select(string csv_path,
 								delimiter, col, complete_match);
 
     cbuf.advance_head(lscan.length());
-    while(!cbuf.at_eof()){
+    while(!bmatcher->found_eof()){
       bool match = bmatcher->do_search(cbuf, *matcher, lscan);
       if(match) printer->print(lscan);
     }
@@ -195,6 +195,7 @@ void run_cut(string csv_path,
     if(del==nullptr) throw runtime_error("Could not find delimiter in line");
     lscan.do_scan(head,read_size,delimiter);
     printer->print(lscan);
+    cbuf.advance_head(lscan.length());
   }
   return;
 }
