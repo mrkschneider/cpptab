@@ -196,6 +196,7 @@ namespace csv {
     Linescan(){
       _lscan = linescan_create(_offsets_size);
       _offsets = std::vector<size_t>();
+      _offsets.reserve(_offsets_size);
       _crnl = false;
       reset();
     }
