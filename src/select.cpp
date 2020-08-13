@@ -109,11 +109,11 @@ bool csv::Onig_Regex_Matcher::search(const char* begin, size_t n){
 			  (const OnigUChar*) begin,
 			  (const OnigUChar*) begin+n,
 			  _match_result,CSV_ONIG_MATCH_FLAGS);
-  if(match < 0) {
-    /*OnigErrorInfo einfo;
+  if(match < 0 && match != ONIG_MISMATCH) {
+    OnigErrorInfo einfo;
     char s[ONIG_MAX_ERROR_MESSAGE_LEN];
     onig_error_code_to_str((UChar*)s, match, &einfo);
-    throw runtime_error(s);*/
+    throw runtime_error(s);
     return false;
   }
   return true;
