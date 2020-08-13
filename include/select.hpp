@@ -56,8 +56,8 @@ namespace csv {
     Context(const Context& o) = delete; 
     Context& operator=(const Context& o) = delete;
     
-    inline circbuf* cbuf() const {return _cbuf;};
-    inline linescan* lscan() const {return _lscan;};
+    circbuf* cbuf() const {return _cbuf;};
+    linescan* lscan() const {return _lscan;};
   };
 
   class Matcher {
@@ -80,9 +80,9 @@ namespace csv {
 		  char delimiter) :
       _pattern { pattern }, _match_result { match_result }, _delimiter {delimiter} {};
     
-    virtual bool search(const char* begin, size_t n);
-    inline virtual size_t position() const { return _match_result.position();};
-    inline virtual size_t size() const {return _match_result.length();};
+    bool search(const char* begin, size_t n) override;
+    size_t position() const override { return _match_result.position();};
+    size_t size() const override {return _match_result.length();};
   };
 
   class Onig_Regex_Matcher : public Matcher {
@@ -117,9 +117,12 @@ namespace csv {
       onig_end();
     }
     
-    virtual bool search(const char* begin, size_t n);
-    inline virtual size_t position() const { return _match_result->beg[0];};
-    inline virtual size_t size() const {return _match_result->end[0] - _match_result->beg[0] - 1;};
+    bool search(const char* begin, size_t n) override;
+    size_t position() const override { return _match_result->beg[0];};
+    size_t size() const override {return _match_result->end[0] - _match_result->beg[0] - 1;}; 
+
+    Onig_Regex_Matcher(const Onig_Regex_Matcher& o) = delete; 
+    Onig_Regex_Matcher& operator=(const Onig_Regex_Matcher& o) = delete;
   };
 
   class Boyer_Moore_Matcher : public Matcher {
@@ -141,9 +144,9 @@ namespace csv {
       _matcher.reset(new boost::algorithm::boyer_moore<const char*>(begin,end));
     };
 
-    virtual bool search(const char* begin, size_t n);
-    inline virtual size_t position() const { return _position;};
-    inline virtual size_t size() const {return _size;};
+    bool search(const char* begin, size_t n) override;
+    size_t position() const override { return _position;};
+    size_t size() const override {return _size;};
 
     Boyer_Moore_Matcher(const Boyer_Moore_Matcher& o) = delete; 
     Boyer_Moore_Matcher& operator=(const Boyer_Moore_Matcher& o) = delete;
@@ -193,9 +196,10 @@ namespace csv {
     friend void scan(const char* buf, uint n, char delimiter, Linescan&);
     friend void set_crnl(bool crnl, Linescan&);
     friend void adjust_for_crnl(Linescan&);
-  };
 
- 
+    Linescan(const Linescan& o) = delete; 
+    Linescan& operator=(const Linescan& o) = delete;
+  };
 
   class Buffer_Matcher {
   public:
@@ -222,7 +226,7 @@ namespace csv {
       _advance_next = 0;
     }
     
-    virtual bool search(circbuf* c, Matcher& matcher, Linescan& result);
+    bool search(circbuf* c, Matcher& matcher, Linescan& result) override;
   };
 
   class Singleline_BMatcher : public Buffer_Matcher {
@@ -241,27 +245,27 @@ namespace csv {
       _complete_match = complete_match;
       _advance_next = 0;
     }
-    virtual bool search(circbuf* c, Matcher& matcher, Linescan& result);
+    bool search(circbuf* c, Matcher& matcher, Linescan& result) override;
   };
 
-  class Line_Scan_Printer {
+  class Linescan_Printer {
   public:
     virtual void print(const Linescan& sc_result) const = 0;
-    virtual ~Line_Scan_Printer(){};
+    virtual ~Linescan_Printer(){};
   };
 
-  class Line_Printer : public Line_Scan_Printer {
+  class Line_Printer : public Linescan_Printer {
   public:
-    virtual void print(const Linescan& sc_result) const;
+    void print(const Linescan& sc_result) const override;
   };
 
-  class Field_Printer : public Line_Scan_Printer {
+  class Field_Printer : public Linescan_Printer {
   private:
     std::vector<size_t> _fields;
     char _delimiter;
 
   public:
-    virtual void print(const Linescan& sc_result) const;
+    void print(const Linescan& sc_result) const override;
     Field_Printer(std::vector<size_t> fields, char delimiter) :
       _fields {fields}, _delimiter {delimiter} {};   
   };

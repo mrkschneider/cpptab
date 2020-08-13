@@ -94,9 +94,9 @@ size_t column_index(const Linescan& sc_result, string column){
   throw runtime_error("Could not find matching column"); 
 }
 
-unique_ptr<Line_Scan_Printer> create_printer(const Linescan& sc_result, char delimiter,
+unique_ptr<Linescan_Printer> create_printer(const Linescan& sc_result, char delimiter,
 					     vector<string> out_columns){
-  unique_ptr<Line_Scan_Printer> r(nullptr);
+  unique_ptr<Linescan_Printer> r(nullptr);
   if(out_columns.empty()) {
     r = make_unique<Line_Printer>();
     return r;
@@ -157,7 +157,7 @@ void run_select(string csv_path,
     scan_header(cbuf, delimiter, lscan);
 
     unique_ptr<Matcher> matcher = create_matcher(pattern, matcher_type, delimiter);
-    unique_ptr<Line_Scan_Printer> printer = create_printer(lscan, delimiter, out_columns);
+    unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
 
     printer->print(lscan);
 
@@ -187,7 +187,7 @@ void run_cut(string csv_path,
 
   scan_header(cbuf, delimiter, lscan);
 
-  unique_ptr<Line_Scan_Printer> printer = create_printer(lscan, delimiter, out_columns);
+  unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
   printer->print(lscan);
 
   char* head = circbuf_head_forward(cbuf, lscan.length());
