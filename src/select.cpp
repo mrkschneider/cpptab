@@ -233,7 +233,7 @@ void csv::Line_Printer::print(const Linescan& sc_result) const {
 void csv::Field_Printer::print(const Linescan& sc_result) const {
   size_t fields_n = _fields.size();
   for(size_t i=0;i<fields_n;i++){
-    size_t field = _fields[i];
+    const size_t& field = _fields[i];
     fwrite(sc_result.field(field), sizeof(char), sc_result.field_size(field), stdout);	
     if(i<fields_n-1)
       putc(_delimiter,stdout);
