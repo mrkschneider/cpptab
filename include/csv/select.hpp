@@ -217,18 +217,11 @@ namespace csv {
   };
 
   class Buffer_Matcher {
-  private:
-    bool _found_eof;
-    
   public:
     virtual bool do_search(Circbuf& c,
 			   Matcher& matcher,
 			   Linescan& result) = 0;
     virtual ~Buffer_Matcher(){};
-
-    Buffer_Matcher() : _found_eof {false} {};
-    bool found_eof() const {return _found_eof;};
-    void set_found_eof(bool found) {_found_eof = found;};
   };
   
   class Multiline_BMatcher : public Buffer_Matcher {

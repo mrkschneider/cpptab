@@ -198,7 +198,6 @@ bool csv::Multiline_BMatcher::do_search(Circbuf& c, Matcher& matcher, Linescan& 
        eventually reaches the end.
      */
     _advance_next = read_size;
-    this->set_found_eof(true);
     return false;
   }
 
@@ -209,10 +208,7 @@ bool csv::Singleline_BMatcher::do_search(Circbuf& c, Matcher& matcher,
 				      Linescan& result){
   size_t read_size = c.read_size();
   const char* head = c.advance_head(_advance_next);
-  if(c.at_eof()) {
-    this->set_found_eof(true);
-    return false;
-  }
+  if(c.at_eof()) return false;
   result.do_scan(head,read_size,_delimiter);
 
   const char* match_field = result.field(_pattern_field);

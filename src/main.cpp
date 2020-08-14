@@ -167,7 +167,7 @@ void run_select(string csv_path,
 								delimiter, col, complete_match);
 
     cbuf.advance_head(lscan.length());
-    while(!bmatcher->found_eof()){
+    while(!cbuf.at_eof()){
       bool match = bmatcher->do_search(cbuf, *matcher, lscan);
       if(match) printer->print(lscan);
     }
