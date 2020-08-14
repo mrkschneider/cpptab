@@ -121,7 +121,7 @@ bool csv::Onig_Regex_Matcher::do_search(const char* begin, size_t n){
 
 bool csv::Boyer_Moore_Matcher::do_search(const char* begin, size_t n){
   const char* end = begin + n;
-  boost::algorithm::boyer_moore<const char*> matcher = *_matcher;
+  boost::algorithm::boyer_moore<const char*>& matcher = *_matcher;
   pair<const char*,const char*> r = matcher(begin,end);
   _position = r.first - begin;
   return r.first != r.second;
