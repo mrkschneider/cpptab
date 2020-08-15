@@ -152,9 +152,9 @@ void run_select(string csv_path,
     }
     
     Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
-    Linescan lscan;
+    Linescan lscan(delimiter);
 
-    lscan.do_scan_header(cbuf.head(), cbuf.read_size(), delimiter);
+    lscan.do_scan_header(cbuf.head(), cbuf.read_size());
 
     unique_ptr<Matcher> matcher = create_matcher(matcher_type, pattern, delimiter);
     unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
@@ -181,9 +181,9 @@ void run_cut(string csv_path,
 	     size_t read_size,
 	     size_t buffer_size){
   Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
-  Linescan lscan;
+  Linescan lscan(delimiter);
 
-  lscan.do_scan_header(cbuf.head(), cbuf.read_size(), delimiter);
+  lscan.do_scan_header(cbuf.head(), cbuf.read_size());
 
   unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
   printer->print(lscan);
@@ -193,7 +193,7 @@ void run_cut(string csv_path,
     char* head = cbuf.head();
     char* del = simple_scan_right(head,read_size,delimiter);
     if(del==nullptr) throw runtime_error("Could not find delimiter in line");
-    lscan.do_scan(head,read_size,delimiter);
+    lscan.do_scan(head,read_size);
     printer->print(lscan);
     cbuf.advance_head(lscan.length());
   }

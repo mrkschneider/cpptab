@@ -44,14 +44,12 @@ string csv::Linescan::str() const {
   return s.str();
 }
 
-void csv::Linescan::do_scan(const char* b, size_t n,
-			    char delimiter){
+void csv::Linescan::do_scan(const char* b, size_t n){
   this->reset();
-  uint64_t cmask = linescan_create_mask(delimiter);
 
   const char* nl_left;
   {
-    int rc = linescan_rfind(b-n,cmask,n,_lscan);
+    int rc = linescan_rfind(b-n,_delimiter_mask,n,_lscan);
     
     if(rc < 1) throw runtime_error("Could not find left newline. Maybe --read-size is too small.");
     size_t offset = _lscan->offsets[_lscan->offsets_n-1];
@@ -67,7 +65,7 @@ void csv::Linescan::do_scan(const char* b, size_t n,
 
   const char* nl_right;
   {
-    int rc = linescan_find(b,cmask,n,_lscan); 
+    int rc = linescan_find(b,_delimiter_mask,n,_lscan); 
 
     if(rc > 0) {
       nl_right = _lscan->buf + _lscan->size - 1;
@@ -90,6 +88,9 @@ void csv::Linescan::do_scan(const char* b, size_t n,
 
     if(rc > 0 && _crnl) this->adjust_for_crnl();
   }
+
+  if(_lscan->offsets_n > _offsets_size)
+    throw runtime_error("Offset buffer overflow");
 
   _n_fields = _offsets.size() - 1;
   return;
@@ -127,12 +128,11 @@ bool csv::Boyer_Moore_Matcher::do_search(const char* begin, size_t n){
   return r.first != r.second;
 }
 
-void csv::Linescan::do_scan_header(const char* buf, size_t n,
-				   char delimiter){
-  char* head = simple_scan_right(buf,n,delimiter);
+void csv::Linescan::do_scan_header(const char* buf, size_t n){
+  char* head = simple_scan_right(buf,n,_delimiter);
   if(head==nullptr) throw runtime_error("Could not find delimiter in header. Maybe --read-size is too small");
     
-  this->do_scan(head,n - (head - buf),delimiter);
+  this->do_scan(head,n - (head - buf));
 
   if((this->begin() + this->length()-2)[0] == '\r'){
     this->set_crnl(true);
@@ -160,7 +160,7 @@ bool csv::Multiline_BMatcher::do_search(Circbuf& c, Matcher& matcher, Linescan& 
     if(match_delimiter != NULL)
       throw runtime_error("Malformed input pattern: Matches delimiter");
     // Find delimiters and surrounding newlines
-    result.do_scan(head,read_size,_delimiter);
+    result.do_scan(head,read_size);
 
     size_t match_field = result.match_field();
     
@@ -210,7 +210,7 @@ bool csv::Singleline_BMatcher::do_search(Circbuf& c, Matcher& matcher,
   size_t read_size = c.read_size();
   const char* head = c.advance_head(_advance_next);
   if(c.at_eof()) return false;
-  result.do_scan(head,read_size,_delimiter);
+  result.do_scan(head,read_size);
 
   const char* match_field = result.field(_pattern_field);
   size_t match_field_size = result.field_size(_pattern_field);

@@ -167,11 +167,13 @@ namespace csv {
   class Linescan {
   private:
     const size_t _offsets_size = 4096;
-    
-    linescan* _lscan;
+
+    const char _delimiter;
+    const uint64_t _delimiter_mask;
+    linescan* const _lscan;
     const char* _begin;
-    size_t _length;
     std::vector<size_t> _offsets;
+    size_t _length;
     size_t _match_field;
     size_t _n_fields;
     bool _crnl;
@@ -180,21 +182,23 @@ namespace csv {
     size_t length() const {return _length;};
     size_t match_field() const {return _match_field;};
     size_t n_fields() const {return _n_fields;};
-    const std::vector<size_t>& field_offsets() const {return _offsets;};
     bool crnl() const {return _crnl;};
 
     const char* field(size_t idx) const;
     size_t field_size(size_t idx) const;
     std::string str() const;
 
-    void do_scan(const char* buf, size_t n, char delimiter);
-    void do_scan_header(const char* buf, size_t n, char delimiter);
+    void do_scan(const char* buf, size_t n);
+    void do_scan_header(const char* buf, size_t n);
 
     void set_crnl(bool crnl) { _crnl = crnl; };
     void adjust_for_crnl() { _offsets[_offsets.size()-1]--;};
 
-    Linescan(){
-      _lscan = linescan_create(_offsets_size);
+    Linescan(char delimiter) :
+      _delimiter {delimiter},
+      _delimiter_mask {linescan_create_mask(delimiter)},
+      _lscan {linescan_create(_offsets_size)}
+    {
       _offsets = std::vector<size_t>();
       _offsets.reserve(_offsets_size);
       _crnl = false;
