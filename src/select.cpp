@@ -183,7 +183,15 @@ bool csv::Multiline_BMatcher::do_search(Circbuf& c, Matcher& matcher, Linescan& 
       _advance_next = result.begin() + result.length() - head;
       return false;
     }
-  } else if(!c.finished()) {
+  }
+  // No match
+  else if(c.finished() && (head + read_size - 1)[0] == '\0') {
+    /* Partial matches at the end of the buffer are impossible now. 
+       This branch makes sure that the circbuffer head eventually reaches the end.
+     */
+    _advance_next = read_size;
+    return false;
+  } else {
     /* No match in buffer. It is possible that there is an 
        incomplete match at the end. To avoid missing a potential match,
        we skip only to the last delimiter in the buffer. This is only
@@ -191,13 +199,6 @@ bool csv::Multiline_BMatcher::do_search(Circbuf& c, Matcher& matcher, Linescan& 
     */  
     char* del_left = simple_scan_left(head+read_size,read_size,_delimiter);
     _advance_next = del_left - head;
-    return false;
-  } else {
-    /* Partial matches at the end of the buffer are impossible once 
-       circbuffer is finished. This branch makes sure that the circbuffer head
-       eventually reaches the end.
-     */
-    _advance_next = read_size;
     return false;
   }
 
