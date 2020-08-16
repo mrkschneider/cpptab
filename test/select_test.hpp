@@ -11,6 +11,61 @@
 typedef std::vector<size_t> Vec_size_t;
 typedef std::vector<std::string> Vec_string;
 
+class CircbufTest : public CxxTest::TestSuite {
+private:
+  size_t read_size = 4;
+  size_t buffer_size = 16;
+  std::string in_path = "./test_resources/bytes.txt";
+  csv::Circbuf* cbuf;
+
+public:
+  void setUp(){
+    cbuf = new csv::Circbuf(in_path, read_size, buffer_size);    
+  }
+
+  void tearDown(){
+    delete cbuf;
+  }
+
+  void test_advance_head(){
+    char* head = cbuf->head();
+    TS_ASSERT_EQUALS('a',head[0]);
+    TS_ASSERT_EQUALS(false,cbuf->finished());
+    TS_ASSERT_EQUALS(read_size,cbuf->read_size());
+    TS_ASSERT_EQUALS(false,cbuf->at_eof());
+
+    head = cbuf->advance_head(4);
+    TS_ASSERT_EQUALS('e',head[0]);
+
+    head = cbuf->advance_head(4);
+    head = cbuf->advance_head(4);
+    head = cbuf->advance_head(4);
+    head = cbuf->advance_head(4);
+    head = cbuf->advance_head(4);
+    // Close to the end now    
+    TS_ASSERT_EQUALS('\n',head[2]);
+    TS_ASSERT_EQUALS('\0',head[3]);
+    TS_ASSERT_EQUALS(true,cbuf->finished()); // Reached EOF
+    TS_ASSERT_EQUALS(false,cbuf->at_eof()); // Head not yet at EOF
+
+    head = cbuf->advance_head(4); // After EOF, every byte should be \0
+    TS_ASSERT_EQUALS(true,cbuf->at_eof());
+    for(size_t i=0;i<4;i++)
+      TS_ASSERT_EQUALS('\0',head[i]);
+  }
+
+  void test_constructor_fd(){
+    FILE* fd = fopen(in_path.c_str(),"r");
+    csv::Circbuf c = csv::Circbuf(fd,read_size,buffer_size);
+    char* head = cbuf->advance_head(4);
+    TS_ASSERT_EQUALS('e',head[0]);
+  } 
+
+};
+
+
+
+
 class LinescanTest : public CxxTest::TestSuite {
 private:
   char* b;

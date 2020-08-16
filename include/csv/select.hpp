@@ -27,13 +27,13 @@ namespace csv {
 
   class Circbuf {
   private:
-    uint _read_size;
-    uint _buffer_size;
+    size_t _read_size;
+    size_t _buffer_size;
     boost::scoped_array<char> _bytes;
     FILE* _fd;
     circbuf* _cbuf;
 
-    void initialize(FILE* fd, uint read_size, uint buffer_size){
+    void initialize(FILE* fd, size_t read_size, size_t buffer_size){
       _read_size = read_size;
       _buffer_size = buffer_size;
       _bytes.reset(new char[buffer_size]());
@@ -42,11 +42,11 @@ namespace csv {
       _cbuf->bytes[read_size-1] = NL;
     }
   public:
-    Circbuf(FILE* fd, uint read_size, uint buffer_size){
+    Circbuf(FILE* fd, size_t read_size, size_t buffer_size){
       initialize(fd, read_size, buffer_size);
     }
     
-    Circbuf(std::string csv_path, uint read_size, uint buffer_size){ 
+    Circbuf(std::string csv_path, size_t read_size, size_t buffer_size){ 
       FILE* fd = fopen(csv_path.c_str(),"r");
       initialize(fd, read_size, buffer_size);
     }
