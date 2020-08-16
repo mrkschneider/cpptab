@@ -58,6 +58,11 @@ public:
       for(size_t i=0;i<lscan->n_fields();i++){
 	TS_ASSERT_EQUALS(fields[i],std::string(lscan->field(i),lscan->field_size(i)));
       }
+#ifdef CSV_DEBUG
+      TS_ASSERT_THROWS_ANYTHING(lscan->field(lscan->n_fields()));
+      TS_ASSERT_THROWS_ANYTHING(lscan->field_size(lscan->n_fields()));
+#endif
+      
     }
 
     { // Start at delimiter

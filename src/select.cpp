@@ -77,9 +77,10 @@ void csv::Linescan::do_scan(const char* b, size_t n){
       nl_right = nl;
       _lscan->offsets[_lscan->offsets_n] = nl_right - b;
       _lscan->offsets_n++;
-    } else {
-      throw runtime_error("Could not find right newline. Maybe --read-size is too small");
-    } 
+    } else { // LCOV_EXCL_START
+      // rc < 0 is reserved for general errors
+      throw runtime_error("Linescan: Unknown error."); 
+    } // LCOV_EXCL_STOP
     _length = nl_right - nl_left;
 
     size_t offset = b - nl_left;
