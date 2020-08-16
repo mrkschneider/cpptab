@@ -36,11 +36,12 @@ size_t csv::Linescan::field_size(size_t idx) const {
 
 string csv::Linescan::str() const {
   ostringstream s;
-  s << "Begin: " << str_ptr(_begin)					
+  s << "Begin: " << str_ptr(_begin) // lcov bug; LCOV_EXCL_LINE 				
     << "\nLength: " << _length
     << "\nMatch field: " << _match_field
     << "\nField count: " << _n_fields
-    << "\nDelimiter offsets: " << str_vector(_offsets);
+    << "\nDelimiter offsets: " << str_vector(_offsets)
+    << "\nCRNL mode: " << _crnl;
   return s.str();
 }
 
@@ -129,10 +130,10 @@ bool csv::Boyer_Moore_Matcher::do_search(const char* begin, size_t n){
 }
 
 void csv::Linescan::do_scan_header(const char* buf, size_t n){
-  char* head = simple_scan_right(buf,n,_delimiter);
-  if(head==nullptr) throw runtime_error("Could not find delimiter in header. Maybe --read-size is too small");
-    
-  this->do_scan(head,n - (head - buf));
+  if(n < 1) throw runtime_error("Read size is 0");
+  if(buf[-1] != '\n') throw runtime_error("No left newline found in header");
+
+  this->do_scan(buf,n);
 
   if((this->begin() + this->length()-2)[0] == '\r'){
     this->set_crnl(true);
