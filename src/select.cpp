@@ -97,6 +97,20 @@ void csv::Linescan::do_scan(const char* b, size_t n){
   return;
 }
 
+void csv::Linescan::do_scan_header(const char* buf, size_t n){
+  this->reset();
+  
+  if(buf[-1] != '\n') throw runtime_error("No left newline found in header");
+
+  this->do_scan(buf,n);
+
+  if((this->begin() + this->length()-2)[0] == '\r'){
+    this->set_crnl(true);
+    this->adjust_for_crnl();
+  }
+  return;
+}
+
 bool csv::Regex_Matcher::do_search(const char* begin, size_t n){
   bool match = boost::regex_search(begin,begin+n,_match_result,_pattern,
 				   csv::REGEX_MATCH_FLAGS);
@@ -129,18 +143,6 @@ bool csv::Boyer_Moore_Matcher::do_search(const char* begin, size_t n){
   return r.first != r.second;
 }
 
-void csv::Linescan::do_scan_header(const char* buf, size_t n){
-  if(n < 1) throw runtime_error("Read size is 0");
-  if(buf[-1] != '\n') throw runtime_error("No left newline found in header");
-
-  this->do_scan(buf,n);
-
-  if((this->begin() + this->length()-2)[0] == '\r'){
-    this->set_crnl(true);
-    this->adjust_for_crnl();
-  }
-  return;
-}
 
 bool csv::Multiline_BMatcher::do_search(Circbuf& c, Matcher& matcher, Linescan& result){
   const char* head = c.advance_head(_advance_next);
