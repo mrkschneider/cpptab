@@ -1,7 +1,7 @@
 include Makefile.env
 INCLUDEDIRS=./include $(BOOSTDIR)/include $(CIRCBUFDIR)/include $(LINESCANDIR)/include $(ONIGDIR)/include $(CLI11DIR)/include
 LIBDIRS=$(OUTLIBDIR) $(BOOSTDIR)/lib $(CIRCBUFDIR)/lib $(LINESCANDIR)/lib $(ONIGDIR)/lib
-LIBNAMES=circbuf.opt linescan.opt :libboost_regex.a :libonig.a
+LIBNAMES=circbuf linescan :libboost_regex.a :libonig.a
 TESTINCLUDEDIRS=$(INCLUDEDIRS) $(CXXTESTDIR)
 OUTLIBDIR=lib
 TESTLIBDIRS=$(LIBDIRS)

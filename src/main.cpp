@@ -152,7 +152,7 @@ void run_select(string csv_path,
     }
     
     Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
-    Linescan lscan(delimiter);
+    Linescan lscan(delimiter, read_size);
 
     lscan.do_scan_header(cbuf.head(), cbuf.read_size());
 
@@ -181,7 +181,7 @@ void run_cut(string csv_path,
 	     size_t read_size,
 	     size_t buffer_size){
   Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
-  Linescan lscan(delimiter);
+  Linescan lscan(delimiter, read_size);
 
   lscan.do_scan_header(cbuf.head(), cbuf.read_size());
 

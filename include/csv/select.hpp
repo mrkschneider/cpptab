@@ -166,10 +166,9 @@ namespace csv {
 
   class Linescan {
   private:
-    const size_t _offsets_size = 4096;
-
     const char _delimiter;
     const uint64_t _delimiter_mask;
+    const size_t _offsets_size;
     linescan* const _lscan;
     const char* _begin;
     std::vector<size_t> _offsets;
@@ -194,10 +193,11 @@ namespace csv {
     void set_crnl(bool crnl) { _crnl = crnl; };
     void adjust_for_crnl() { _offsets[_offsets.size()-1]--;};
 
-    Linescan(char delimiter) :
+    Linescan(char delimiter, size_t offsets_size) :
       _delimiter {delimiter},
       _delimiter_mask {linescan_create_mask(delimiter)},
-      _lscan {linescan_create(_offsets_size)}
+      _offsets_size {offsets_size},
+      _lscan {linescan_create(offsets_size)}
     {
       _offsets = std::vector<size_t>();
       _offsets.reserve(_offsets_size);

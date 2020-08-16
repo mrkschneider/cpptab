@@ -8,7 +8,7 @@
 
 #include <csv/select.hpp>
 
-class LinescanTestSuite : public CxxTest::TestSuite {
+class LinescanTest : public CxxTest::TestSuite {
 private:
   char* b;
   size_t size = 64;
@@ -25,6 +25,10 @@ public:
   void tearDown(){
     delete[] b;
   }
+
+
+
+
 
   
 
