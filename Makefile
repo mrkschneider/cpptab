@@ -11,7 +11,8 @@ TEST_SRCDIR=test
 TEST_DEBUG_OUTDIR=test_out_debug
 TEST_OPT_OUTDIR=test_out_opt
 TEST_BIN=testrunner
-OUTBIN=main.out
+OUTBIN_DEBUG=debug.out
+OUTBIN_OPT=main.out
 SHELL=/bin/bash
 SRC_EXTENSION=.cpp
 
@@ -59,9 +60,11 @@ $(OBJECTS_OPT): $(OBJDIR_OPT)/%.o: %$(SRC_EXTENSION)
 
 debug: $(OBJECTS_DEBUG)
 	ar rcs $(OUTLIBDIR)/lib$(OUTLIBNAME_DEBUG).a $(OBJECTS_DEBUG)
+	$(CPP) $(CPPFLAGS) $(DEBUGFLAGS) $(PROFILEFLAGS) $(INCLUDELINE) $(LIBLINE) -o $(OUTBIN_DEBUG) $(OBJECTS_DEBUG) $(LIBNAMELINE)
 
-opt: $(OBJECTS_OPT)
+opt: $(OBJECTS_OPT) 
 	ar rcs $(OUTLIBDIR)/lib$(OUTLIBNAME_OPT).a $(OBJECTS_OPT)
+	$(CPP) $(CPPFLAGS) $(OPTIMIZEFLAGS) $(INCLUDELINE) $(LIBLINE) -o $(OUTBIN_OPT) $(OBJECTS_OPT) $(LIBNAMELINE)
 
 test: clean_test debug
 	cxxtestgen --error-printer -o $(TEST_DEBUG_OUTDIR)/tests.cpp $(TEST_SOURCES)

@@ -91,8 +91,7 @@ void csv::Linescan::do_scan(const char* b, size_t n){
     if(rc > 0 && _crnl) this->adjust_for_crnl();
   }
 
-  if(_lscan->offsets_n > _offsets_size)
-    throw runtime_error("Offset buffer overflow");
+  assert(_lscan->offsets_n <= _offsets_size);
 
   _n_fields = _offsets.size() - 1;
   return;

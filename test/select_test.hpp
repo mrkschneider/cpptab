@@ -16,6 +16,7 @@ private:
   char* b;
   size_t size = 16;
   csv::Linescan* lscan;
+  char delimiter = 'b';
 
 public:
 
@@ -27,7 +28,7 @@ public:
 
     b[0] = '\n';
     b[size-1] = '\n';
-    lscan = new csv::Linescan('b',size);
+    lscan = new csv::Linescan(delimiter,size);
   }
 
   void tearDown(){
