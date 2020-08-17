@@ -67,6 +67,7 @@ opt: $(OBJECTS_OPT)
 	$(CPP) $(CPPFLAGS) $(OPTIMIZEFLAGS) $(INCLUDELINE) $(LIBLINE) -o $(OUTBIN_OPT) $(OBJECTS_OPT) $(LIBNAMELINE)
 
 test: clean_test debug
+	lcov -q --no-external --capture --initial --directory . --output-file coverage.base.info --exclude '*main.cpp'
 	cxxtestgen --error-printer -o $(TEST_DEBUG_OUTDIR)/tests.cpp $(TEST_SOURCES)
 	$(CPP) $(CPPFLAGS) $(DEBUGFLAGS) $(PROFILEFLAGS) $(TEST_INCLUDELINE) $(TEST_LIBLINE) -o $(TEST_DEBUG_OUTDIR)/tests.o $(TEST_DEBUG_OUTDIR)/tests.cpp $(TEST_DEBUG_LIBNAMELINE)
 	$(TEST_DEBUG_OUTDIR)/tests.o -v
@@ -85,7 +86,6 @@ clean_profile:
 	rm -f *.info
 	rm -rf coverage
 	rm -f tests.gcda tests.gcno
-	lcov -q --no-external --capture --initial --directory . --output-file coverage.base.info
 	lcov --zerocounters --directory .
 
 clean_test: clean_profile
