@@ -46,7 +46,7 @@ namespace csv {
       initialize(fd, read_size, buffer_size);
     }
     
-    Circbuf(std::string csv_path, size_t read_size, size_t buffer_size){ 
+    Circbuf(const std::string& csv_path, size_t read_size, size_t buffer_size){ 
       FILE* fd = fopen(csv_path.c_str(),"r");
       initialize(fd, read_size, buffer_size);
     }
@@ -93,8 +93,9 @@ namespace csv {
 
   class Onig_Regex_Matcher : public Matcher {
   private:
-    OnigRegion* _match_result;
     regex_t* _pattern;
+    OnigRegion* _match_result;
+    OnigMatchParam* _match_param;
     static bool _initialized;
 
   public:
@@ -115,11 +116,13 @@ namespace csv {
 	onig_error_code_to_str((UChar*)s, rc, &einfo);
 	csv::exit_error(s);
       } // LCOV_EXCL_STOP
+      _match_param = onig_new_match_param();
       _match_result = onig_region_new();
     }
 
     ~Onig_Regex_Matcher(){
       onig_region_free(_match_result, 1);
+      onig_free_match_param(_match_param);
       onig_free(_pattern);
     }
 
@@ -270,18 +273,18 @@ namespace csv {
     bool do_search(Circbuf& c, Matcher& matcher, Linescan& result) override;
   };
 
-  class Linescan_Printer {
+  class Linescan_Printer { // LCOV_EXCL_START
   public:
     virtual void print(const Linescan& sc_result) const = 0;
     virtual ~Linescan_Printer(){};
-  };
+  }; // LCOV_EXCL_STOP
 
-  class Line_Printer : public Linescan_Printer {
+  class Line_Printer : public Linescan_Printer { // LCOV_EXCL_START
   public:
     void print(const Linescan& sc_result) const override;
-  };
+  }; // LCOV_EXCL_STOP
 
-  class Field_Printer : public Linescan_Printer {
+  class Field_Printer : public Linescan_Printer { // LCOV_EXCL_START
   private:
     const std::vector<size_t> _fields;
     const char _delimiter;
@@ -290,7 +293,7 @@ namespace csv {
     void print(const Linescan& sc_result) const override;
     Field_Printer(std::vector<size_t> fields, char delimiter) :
       _fields {fields}, _delimiter {delimiter} {};   
-  };
+  }; // LCOV_EXCL_STOP
       
 
   inline char* simple_scan_left(const char* buf, uint n, char target){

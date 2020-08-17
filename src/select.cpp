@@ -19,18 +19,12 @@ using namespace st;
 using namespace csv;
 
 const char* csv::Linescan::field(size_t idx) const {
-  #ifdef CSV_DEBUG
-  if(idx > _n_fields - 1)
-    throw runtime_error("Array index too large");
-  #endif
+  if(idx >= _n_fields) return nullptr;
   return _begin + _offsets[idx];  
 }
 
 size_t csv::Linescan::field_size(size_t idx) const {
-  #ifdef CSV_DEBUG
-  if(idx > _n_fields - 1)
-    throw runtime_error("Array index too large");
-  #endif
+  if(idx >= _n_fields) return 0;
   return _offsets[idx+1] - _offsets[idx] - 1;
 }
 
@@ -120,20 +114,23 @@ bool csv::Regex_Matcher::do_search(const char* begin, size_t n){
 bool csv::Onig_Regex_Matcher::_initialized = false;
 
 bool csv::Onig_Regex_Matcher::do_search(const char* begin, size_t n){
-  int match = onig_search(_pattern,
-			  (const OnigUChar*) begin,
-			  (const OnigUChar*) begin+n,
-			  (const OnigUChar*) begin,
-			  (const OnigUChar*) begin+n,
-			  _match_result,CSV_ONIG_MATCH_FLAGS);
+  int match = onig_search_with_param(_pattern,
+				     (const OnigUChar*) begin,
+				     (const OnigUChar*) begin+n,
+				     (const OnigUChar*) begin,
+				     (const OnigUChar*) begin+n,
+				     _match_result,
+				     CSV_ONIG_MATCH_FLAGS,
+				     _match_param
+				     );
   if(match == ONIG_MISMATCH) {
     return false;
-  } else if(match < 0) {
+  } else if(match < 0) { // Oniguruma error. Don't know how to test this. LCOV_EXCL_START
     OnigErrorInfo einfo;
     char s[ONIG_MAX_ERROR_MESSAGE_LEN];
     onig_error_code_to_str((UChar*)s, match, &einfo);
     throw runtime_error(s);
-  }
+  } // LCOV_EXCL_STOP
   return true;
 }
 
@@ -227,12 +224,13 @@ bool csv::Singleline_BMatcher::do_search(Circbuf& c, Matcher& matcher,
   return match && is_complete;  
 }
 
-void csv::Line_Printer::print(const Linescan& sc_result) const {
+void csv::Line_Printer::print(const Linescan& sc_result) const { // LCOV_EXCL_START
   fwrite(sc_result.begin(), sizeof(char), sc_result.length()-1, stdout);
   putc('\n',stdout);
 }
+// LCOV_EXCL_STOP
 
-void csv::Field_Printer::print(const Linescan& sc_result) const {
+void csv::Field_Printer::print(const Linescan& sc_result) const { // LCOV_EXCL_START
   size_t fields_n = _fields.size();
   for(size_t i=0;i<fields_n;i++){
     const size_t& field = _fields[i];
@@ -245,3 +243,4 @@ void csv::Field_Printer::print(const Linescan& sc_result) const {
   }
   putc('\n',stdout);
 }
+// LCOV_EXCL_STOP
