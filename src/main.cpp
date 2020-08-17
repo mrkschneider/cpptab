@@ -47,16 +47,15 @@ Circbuf create_circbuf(string csv_path, size_t read_size, size_t buffer_size){
 }
 
 unique_ptr<Matcher> create_matcher(Matcher_Type matcher_type,
-				   string regex,
-				   char delimiter){
+				   string regex){
   unique_ptr<Matcher> r(nullptr);
 
   switch(matcher_type){
   case Matcher_Type::REGEX:
-    r = make_unique<Onig_Regex_Matcher>(regex,delimiter);
+    r = make_unique<Onig_Regex_Matcher>(regex);
     break;
   case Matcher_Type::BOYER_MOORE:
-    r = make_unique<Boyer_Moore_Matcher>(regex,delimiter);
+    r = make_unique<Boyer_Moore_Matcher>(regex);
     break;
   default: throw runtime_error("Invalid matcher type");
   }
@@ -156,7 +155,7 @@ void run_select(string csv_path,
 
     lscan.do_scan_header(cbuf.head(), cbuf.read_size());
 
-    unique_ptr<Matcher> matcher = create_matcher(matcher_type, pattern, delimiter);
+    unique_ptr<Matcher> matcher = create_matcher(matcher_type, pattern);
     unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
 
     printer->print(lscan);

@@ -81,12 +81,10 @@ namespace csv {
   private:
     boost::regex _pattern;
     boost::cmatch _match_result;
-    char _delimiter;
     
   public:
-    Regex_Matcher(boost::regex pattern, boost::cmatch match_result,
-		  char delimiter) :
-      _pattern { pattern }, _match_result { match_result }, _delimiter {delimiter} {};
+    Regex_Matcher(boost::regex pattern, boost::cmatch match_result) :
+      _pattern { pattern }, _match_result { match_result } {};
     
     bool do_search(const char* begin, size_t n) override;
     size_t position() const override { return _match_result.position();};
@@ -95,13 +93,11 @@ namespace csv {
 
   class Onig_Regex_Matcher : public Matcher {
   private:
-    const char _delimiter;
     OnigRegion* _match_result;
     regex_t* _pattern;
 
   public:
-    Onig_Regex_Matcher(std::string pattern, char delimiter) :
-      _delimiter {delimiter}
+    Onig_Regex_Matcher(std::string pattern) 
     {
       OnigEncoding use_encs[1];
       use_encs[0] = ONIG_ENCODING_ASCII;
@@ -140,15 +136,13 @@ namespace csv {
   private:
     const std::string _pattern;
     const size_t _size;
-    const char _delimiter;
     size_t _position;
     boost::scoped_ptr<boost::algorithm::boyer_moore<const char*>> _matcher;
 
   public:
-    Boyer_Moore_Matcher(std::string pattern, char delimiter) :
+    Boyer_Moore_Matcher(std::string pattern) :
       _pattern {pattern},
-      _size {pattern.size()},
-      _delimiter {delimiter}
+      _size {pattern.size()}
     {
       _position = 0;
       const char* begin = _pattern.c_str();

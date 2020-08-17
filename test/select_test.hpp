@@ -11,7 +11,7 @@
 typedef std::vector<size_t> Vec_size_t;
 typedef std::vector<std::string> Vec_string;
 
-class CircbufTest : public CxxTest::TestSuite {
+class Circbuf_Test : public CxxTest::TestSuite {
 private:
   size_t read_size = 4;
   size_t buffer_size = 16;
@@ -63,10 +63,30 @@ public:
 
 };
 
+class Regex_Matcher_Test : public CxxTest::TestSuite {
+private:
+  std::string pattern = "bc";
+  std::string s = "abcd";
+
+public:
+
+  void setUp(){
+    
+  }
+
+  void tearDown() {
+
+  }
+
+  void test_do_search() {
+    
+  }
+
+}; 
 
 
 
-class LinescanTest : public CxxTest::TestSuite {
+class Linescan_Test : public CxxTest::TestSuite {
 private:
   char* b;
   size_t size = 16;
