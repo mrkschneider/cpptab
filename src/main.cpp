@@ -52,6 +52,8 @@ unique_ptr<Matcher> create_matcher(Matcher_Type matcher_type,
 
   switch(matcher_type){
   case Matcher_Type::REGEX:
+    Onig_Regex_Matcher::initialize();
+    std::atexit(Onig_Regex_Matcher::finalize);
     r = make_unique<Onig_Regex_Matcher>(regex);
     break;
   case Matcher_Type::BOYER_MOORE:
@@ -202,7 +204,7 @@ void run_cut(string csv_path,
 
 int main(int argc, const char* argv[]){
   try{
-
+        
     char out[STDOUT_SIZE];
     setvbuf(stdout, out, _IOFBF, STDOUT_SIZE);
 

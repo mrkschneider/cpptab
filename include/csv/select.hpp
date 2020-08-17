@@ -95,38 +95,49 @@ namespace csv {
   private:
     OnigRegion* _match_result;
     regex_t* _pattern;
+    static bool _initialized;
 
   public:
     Onig_Regex_Matcher(std::string pattern) 
     {
-      OnigEncoding use_encs[1];
-      use_encs[0] = ONIG_ENCODING_ASCII;
-      onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
-
+      if(!_initialized){ // LCOV_EXCL_START
+	/* No exception thrown from constructor - potential memory
+	   leak as destructor would never be called. */
+	csv::exit_error("Onig_Regex_Matcher not initialized before first constructor call.");
+      } // LCOV_EXCL_STOP
       OnigErrorInfo einfo;
       auto pattern_c = boost::scoped_array<UChar>(new UChar[pattern.size()]);
       strncpy((char*)(pattern_c.get()),pattern.c_str(),pattern.size());
       int rc = onig_new(&_pattern, pattern_c.get(), pattern_c.get() + pattern.size(),
 			CSV_ONIG_SYNTAX_OPTIONS, ONIG_ENCODING_ASCII, ONIG_SYNTAX_PERL, &einfo);
-      if(rc != ONIG_NORMAL){
+      if(rc != ONIG_NORMAL){ // LCOV_EXCL_START
 	char s[ONIG_MAX_ERROR_MESSAGE_LEN];
 	onig_error_code_to_str((UChar*)s, rc, &einfo);
-	/* No exception thrown from constructor - potential memory
-	   leak as destructor would never be called. */
 	csv::exit_error(s);
-      }
+      } // LCOV_EXCL_STOP
       _match_result = onig_region_new();
     }
 
     ~Onig_Regex_Matcher(){
       onig_region_free(_match_result, 1);
       onig_free(_pattern);
+    }
+
+    static void initialize(){
+      OnigEncoding use_encs[1];
+      use_encs[0] = ONIG_ENCODING_ASCII;
+      onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
+      _initialized = true;
+    }
+
+    static void finalize(){
       onig_end();
+      _initialized = false;
     }
     
     bool do_search(const char* begin, size_t n) override;
     size_t position() const override { return _match_result->beg[0];};
-    size_t size() const override {return _match_result->end[0] - _match_result->beg[0] - 1;}; 
+    size_t size() const override {return _match_result->end[0] - _match_result->beg[0];}; 
 
     Onig_Regex_Matcher(const Onig_Regex_Matcher& o) = delete; 
     Onig_Regex_Matcher& operator=(const Onig_Regex_Matcher& o) = delete;

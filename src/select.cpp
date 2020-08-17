@@ -117,6 +117,8 @@ bool csv::Regex_Matcher::do_search(const char* begin, size_t n){
   return match;
 }
 
+bool csv::Onig_Regex_Matcher::_initialized = false;
+
 bool csv::Onig_Regex_Matcher::do_search(const char* begin, size_t n){
   int match = onig_search(_pattern,
 			  (const OnigUChar*) begin,

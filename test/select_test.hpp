@@ -65,27 +65,113 @@ public:
 
 class Regex_Matcher_Test : public CxxTest::TestSuite {
 private:
-  std::string pattern = "bc";
   std::string s = "abcd";
 
 public:
 
   void setUp(){
-    
   }
 
   void tearDown() {
+  }
 
+  csv::Regex_Matcher create(std::string pattern){
+    return csv::Regex_Matcher(boost::regex(pattern),boost::cmatch());
   }
 
   void test_do_search() {
-    
+
+    csv::Regex_Matcher matcher = create("xyz");
+    TS_ASSERT_THROWS_ANYTHING(matcher.position());        
+    TS_ASSERT_THROWS_ANYTHING(matcher.size());        
+
+    bool match = matcher.do_search(s.c_str(),s.size());
+
+    TS_ASSERT_EQUALS(false,match);
+    TS_ASSERT_THROWS_ANYTHING(matcher.position());        
+    TS_ASSERT_THROWS_ANYTHING(matcher.size());        
+
+    matcher = create("bc.");
+    match = matcher.do_search(s.c_str(),s.size());
+
+    TS_ASSERT_EQUALS(true,match);
+    TS_ASSERT_EQUALS(1,matcher.position());        
+    TS_ASSERT_EQUALS(3,matcher.size());        
   }
 
 }; 
 
+class Onig_Regex_Matcher_Test : public CxxTest::TestSuite {
+private:
+  std::string s = "abcd";
 
+public:
 
+  void setUp(){
+    csv::Onig_Regex_Matcher::initialize();
+  }
+
+  void tearDown() {
+    csv::Onig_Regex_Matcher::finalize();
+  }
+
+  csv::Onig_Regex_Matcher* create(std::string pattern){
+    return new csv::Onig_Regex_Matcher(pattern);
+  }
+
+  void test_do_search() {
+    auto matcher = boost::scoped_ptr<csv::Onig_Regex_Matcher>(create("xyz"));
+
+    bool match = matcher->do_search(s.c_str(),s.size());
+
+    TS_ASSERT_EQUALS(false,match);
+
+    matcher.reset(create("bc."));
+
+    match = matcher->do_search(s.c_str(),s.size());
+
+    TS_ASSERT_EQUALS(true,match);
+    TS_ASSERT_EQUALS(1,matcher->position());        
+    TS_ASSERT_EQUALS(3,matcher->size());      
+  }
+
+}; 
+
+class Boyer_Moore_Matcher_Test : public CxxTest::TestSuite {
+private:
+  std::string s = "abcd";
+
+public:
+
+  void setUp(){
+  }
+
+  void tearDown() {
+  }
+
+  csv::Boyer_Moore_Matcher* create(std::string pattern){
+    return new csv::Boyer_Moore_Matcher(pattern);
+  }
+
+  void test_do_search() {
+    auto matcher = boost::scoped_ptr<csv::Boyer_Moore_Matcher>(create("xyz"));
+
+    bool match = matcher->do_search(s.c_str(),s.size());
+
+    TS_ASSERT_EQUALS(false,match);
+
+    matcher.reset(create("bc"));
+
+    match = matcher->do_search(s.c_str(),s.size());
+
+    TS_ASSERT_EQUALS(true,match);
+    TS_ASSERT_EQUALS(1,matcher->position());        
+    TS_ASSERT_EQUALS(2,matcher->size());      
+  }
+
+}; 
+
+  
 class Linescan_Test : public CxxTest::TestSuite {
 private:
   char* b;
