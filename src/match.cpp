@@ -143,21 +143,21 @@ bool csv::Boyer_Moore_Matcher::do_search(const char* begin, size_t n){
 }
 
 
-bool csv::Multiline_BMatcher::do_search(Circbuf& c, Matcher& matcher, Linescan& result){
+bool csv::Multiline_BMatcher::do_search(Circbuf& c, Linescan& result){
   const char* head = c.advance_head(_advance_next);
   size_t read_size = c.read_size();
 
-  bool match = matcher.do_search(head,read_size);
+  bool match = _matcher->do_search(head,read_size);
 
   if(match){
     /* Regex matches in the buffer. 
        Now we need to find out whether the match is located in the correct column. */
-    size_t match_end_offset = matcher.position() + matcher.size();
+    size_t match_end_offset = _matcher->position() + _matcher->size();
         
     // Move to end of regex match
     head = c.advance_head(match_end_offset);
 
-    char* match_delimiter = simple_scan_left(head, matcher.size(),
+    char* match_delimiter = simple_scan_left(head, _matcher->size(),
 					      _delimiter);
     if(match_delimiter != NULL)
       throw runtime_error("Malformed input pattern: Matches delimiter");
@@ -170,7 +170,8 @@ bool csv::Multiline_BMatcher::do_search(Circbuf& c, Matcher& matcher, Linescan& 
       // Match is in expected column.
       // Move to next newline.
       _advance_next = result.begin() + result.length() - head;
-      bool is_complete = (!(_complete_match)) || matcher.size() == result.field_size(match_field); 
+      bool is_complete = (!(_complete_match)) ||
+	_matcher->size() == result.field_size(match_field); 
       return is_complete;
     } else if(match_field < _pattern_field){
       // Match is too far left. Move to begin of expected column.
@@ -207,8 +208,7 @@ bool csv::Multiline_BMatcher::do_search(Circbuf& c, Matcher& matcher, Linescan& 
   throw runtime_error("Unreachable code");
 }
 
-bool csv::Singleline_BMatcher::do_search(Circbuf& c, Matcher& matcher,
-				      Linescan& result){
+bool csv::Singleline_BMatcher::do_search(Circbuf& c, Linescan& result){
   size_t read_size = c.read_size();
   const char* head = c.advance_head(_advance_next);
   if(c.at_eof()) return false;
@@ -217,8 +217,8 @@ bool csv::Singleline_BMatcher::do_search(Circbuf& c, Matcher& matcher,
   const char* match_field = result.field(_pattern_field);
   size_t match_field_size = result.field_size(_pattern_field);
 
-  bool match = matcher.do_search(match_field, match_field_size);
-  bool is_complete = (!(_complete_match)) || match_field_size == matcher.size();
+  bool match = _matcher->do_search(match_field, match_field_size);
+  bool is_complete = (!(_complete_match)) || match_field_size == _matcher->size();
 
   _advance_next = result.length();
   return match && is_complete;  

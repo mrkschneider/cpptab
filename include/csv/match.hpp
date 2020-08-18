@@ -10,6 +10,7 @@
 #include <linescan.h>
 
 #include <string>
+#include <memory>
 #include <vector>
 #include <map>
 #include <any>
@@ -232,45 +233,56 @@ namespace csv {
   class Buffer_Matcher {
   public:
     virtual bool do_search(Circbuf& c,
-			   Matcher& matcher,
 			   Linescan& result) = 0;
     virtual ~Buffer_Matcher(){};
   };
   
   class Multiline_BMatcher : public Buffer_Matcher {
   private:
+    const std::unique_ptr<csv::Matcher> _matcher;
     const char _delimiter;
     const size_t _pattern_field;
     const bool _complete_match;
     size_t _advance_next;
     
   public:
-    Multiline_BMatcher(char delimiter,
+    Multiline_BMatcher(std::unique_ptr<csv::Matcher> matcher,
+		       char delimiter,
 		       size_t pattern_field,
 		       bool complete_match) :
+      _matcher {std::move(matcher)},
       _delimiter {delimiter},
       _pattern_field {pattern_field},
       _complete_match {complete_match},
       _advance_next {0} {};
-    bool do_search(Circbuf& c, Matcher& matcher, Linescan& result) override;
+    bool do_search(Circbuf& c, Linescan& result) override;
+
+    Multiline_BMatcher(const Multiline_BMatcher& o) = delete; 
+    Multiline_BMatcher& operator=(const Multiline_BMatcher& o) = delete;
   };
 
   class Singleline_BMatcher : public Buffer_Matcher {
   private:
+    const std::unique_ptr<csv::Matcher> _matcher;
     const char _delimiter;
     const size_t _pattern_field;
     const bool _complete_match;
     size_t _advance_next;
 
   public:
-    Singleline_BMatcher(char delimiter,
+    Singleline_BMatcher(std::unique_ptr<csv::Matcher> matcher,
+			char delimiter,
 			size_t pattern_field,
 			bool complete_match) :
+      _matcher {std::move(matcher)},
       _delimiter {delimiter},
       _pattern_field {pattern_field},
       _complete_match {complete_match},
       _advance_next {0} {};
-    bool do_search(Circbuf& c, Matcher& matcher, Linescan& result) override;
+    bool do_search(Circbuf& c, Linescan& result) override;
+
+    Singleline_BMatcher(const Singleline_BMatcher& o) = delete; 
+    Singleline_BMatcher& operator=(const Singleline_BMatcher& o) = delete;
   };
 
   inline char* simple_scan_left(const char* buf, uint n, char target){

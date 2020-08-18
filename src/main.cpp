@@ -56,18 +56,21 @@ unique_ptr<Matcher> create_matcher(Matcher_Type matcher_type,
   return r;
 }
 
-unique_ptr<Buffer_Matcher> create_buffer_matcher(Buffer_Matcher_Type matcher_type,
+unique_ptr<Buffer_Matcher> create_buffer_matcher(Buffer_Matcher_Type bmatcher_type,
+						 Matcher_Type matcher_type,
+						 const string& regex,
 						 char delimiter,
 						 size_t pattern_field,
 						 bool complete_match){
   unique_ptr<Buffer_Matcher> r(nullptr);
+  unique_ptr<Matcher> m = create_matcher(matcher_type, regex);
 
-  switch(matcher_type){
+  switch(bmatcher_type){
   case Buffer_Matcher_Type::LINE:
-    r = make_unique<Singleline_BMatcher>(delimiter,pattern_field,complete_match);
+    r = make_unique<Singleline_BMatcher>(move(m),delimiter,pattern_field,complete_match);
     break;
   case Buffer_Matcher_Type::MULTILINE:
-    r = make_unique<Multiline_BMatcher>(delimiter,pattern_field,complete_match);
+    r = make_unique<Multiline_BMatcher>(move(m),delimiter,pattern_field,complete_match);
     break;
   default: throw runtime_error("Invalid buffer matcher type");
   }
@@ -148,7 +151,6 @@ void run_select(string csv_path,
 
     lscan.do_scan_header(cbuf.head(), cbuf.read_size());
 
-    unique_ptr<Matcher> matcher = create_matcher(matcher_type, pattern);
     unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
 
     printer->print(lscan);
@@ -156,11 +158,14 @@ void run_select(string csv_path,
     size_t col = column_index(lscan, column);
 
     unique_ptr<Buffer_Matcher> bmatcher = create_buffer_matcher(bmatcher_type,
-								delimiter, col, complete_match);
+								matcher_type,
+								pattern,
+								delimiter,
+								col, complete_match);
 
     cbuf.advance_head(lscan.length());
     while(!cbuf.at_eof()){
-      bool match = bmatcher->do_search(cbuf, *matcher, lscan);
+      bool match = bmatcher->do_search(cbuf, lscan);
       if(match) printer->print(lscan);
     }
 

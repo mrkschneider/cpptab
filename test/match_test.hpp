@@ -365,9 +365,11 @@ public:
     return new csv::Boyer_Moore_Matcher(pattern);
   }
 
-  csv::Singleline_BMatcher* create_bmatcher(size_t pattern_field,
+  csv::Singleline_BMatcher* create_bmatcher(std::string pattern,
+					    size_t pattern_field,
 					    bool complete_match){
-    return new csv::Singleline_BMatcher(delimiter,pattern_field,complete_match);
+    return new csv::Singleline_BMatcher(std::unique_ptr<csv::Matcher>(create_matcher(pattern)),
+					delimiter,pattern_field,complete_match);
   }
   
   void setUp(){
@@ -380,16 +382,15 @@ public:
 
   void test_do_search_simple(){
     auto cbuf = boost::scoped_ptr<csv::Circbuf>(create_circbuf(csv_path_simple));
-    auto matcher = boost::scoped_ptr<csv::Boyer_Moore_Matcher>(create_matcher("a"));
-    auto bmatcher = boost::scoped_ptr<csv::Singleline_BMatcher>(create_bmatcher(1,false));
-    bool match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    auto bmatcher = boost::scoped_ptr<csv::Singleline_BMatcher>(create_bmatcher("a",1,false));
+    bool match = bmatcher->do_search(*cbuf, *lscan);
 
     // Header line
     TS_ASSERT_EQUALS(false,match);
     TS_ASSERT_EQUALS(lscan->begin()[0],'a');
     TS_ASSERT_EQUALS((lscan->begin() + lscan->length() - 1)[0],'\n');
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(true,match);
     TS_ASSERT_EQUALS(lscan->begin()[0],'1');
     TS_ASSERT_EQUALS((lscan->begin() + lscan->length() - 1)[0],'\n');
@@ -398,21 +399,21 @@ public:
       TS_ASSERT_EQUALS(offsets,lscan->offsets());
     }
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(false,match);
 
     // Empty line
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(false,match);
     {
       auto offsets = Vec_size_t{0,1};
       TS_ASSERT_EQUALS(offsets,lscan->offsets());
     }
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(false,match);
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(true,match);
     TS_ASSERT_EQUALS(lscan->begin()[0],'1');
     TS_ASSERT_EQUALS((lscan->begin() + lscan->length() - 1)[0],'\n');
@@ -422,10 +423,10 @@ public:
     }
 
     for(size_t i=0;i<3;i++)
-      match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+      match = bmatcher->do_search(*cbuf, *lscan);
 
     // Past last line
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(false,match);
     {
       auto offsets = Vec_size_t{0,3,7,10}; // No change in offsets. Is this benign?
@@ -435,30 +436,29 @@ public:
 
   void test_do_search_simple_complete_match(){
     auto cbuf = boost::scoped_ptr<csv::Circbuf>(create_circbuf(csv_path_simple));
-    auto matcher = boost::scoped_ptr<csv::Boyer_Moore_Matcher>(create_matcher("11a"));
-    auto bmatcher = boost::scoped_ptr<csv::Singleline_BMatcher>(create_bmatcher(1,true));
-    bool match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    auto bmatcher = boost::scoped_ptr<csv::Singleline_BMatcher>(create_bmatcher("11a",1,true));
+    bool match = bmatcher->do_search(*cbuf, *lscan);
 
     // Header line
     TS_ASSERT_EQUALS(false,match);
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(false,match);
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(false,match);
 
     // Empty line
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(false,match);
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(false,match);
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(true,match);
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(false,match);
   }
 };
@@ -481,9 +481,11 @@ public:
     return new csv::Boyer_Moore_Matcher(pattern);
   }
 
-  csv::Multiline_BMatcher* create_bmatcher(size_t pattern_field,
-					    bool complete_match){
-    return new csv::Multiline_BMatcher(delimiter,pattern_field,complete_match);
+  csv::Multiline_BMatcher* create_bmatcher(std::string pattern,
+					   size_t pattern_field,
+					   bool complete_match){
+    return new csv::Multiline_BMatcher(std::unique_ptr<csv::Matcher>(create_matcher(pattern)),
+				       delimiter,pattern_field,complete_match);
   }
   
   void setUp(){
@@ -496,24 +498,22 @@ public:
 
   void test_do_search_delimiter_pattern_error(){
     auto cbuf = boost::scoped_ptr<csv::Circbuf>(create_circbuf(csv_path_simple));
-    auto matcher = boost::scoped_ptr<csv::Boyer_Moore_Matcher>(create_matcher("a,"));
-    auto bmatcher = boost::scoped_ptr<csv::Multiline_BMatcher>(create_bmatcher(1,false));
+    auto bmatcher = boost::scoped_ptr<csv::Multiline_BMatcher>(create_bmatcher("a,",1,false));
 
-    TS_ASSERT_THROWS_ANYTHING(bmatcher->do_search(*cbuf, *matcher, *lscan));
+    TS_ASSERT_THROWS_ANYTHING(bmatcher->do_search(*cbuf, *lscan));
   }
 
   void test_do_search_simple(){
     auto cbuf = boost::scoped_ptr<csv::Circbuf>(create_circbuf(csv_path_simple));
-    auto matcher = boost::scoped_ptr<csv::Boyer_Moore_Matcher>(create_matcher("a"));
-    auto bmatcher = boost::scoped_ptr<csv::Multiline_BMatcher>(create_bmatcher(1,false));
-    bool match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    auto bmatcher = boost::scoped_ptr<csv::Multiline_BMatcher>(create_bmatcher("a",1,false));
+    bool match = bmatcher->do_search(*cbuf, *lscan);
 
     // Header line
     TS_ASSERT_EQUALS(false,match);
     TS_ASSERT_EQUALS(lscan->begin()[0],'a');
     TS_ASSERT_EQUALS((lscan->begin() + lscan->length() - 1)[0],'\n');
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(false,match);
     TS_ASSERT_EQUALS(",2a,",std::string(cbuf->head(),4)); // Scanned until here, 2a not matched yet
     TS_ASSERT_EQUALS(lscan->begin()[0],'1');
@@ -523,14 +523,14 @@ public:
       TS_ASSERT_EQUALS(offsets,lscan->offsets());
 
       // Stays in same line, now 2a gets found
-      match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+      match = bmatcher->do_search(*cbuf, *lscan);
       TS_ASSERT_EQUALS(true,match);
       TS_ASSERT_EQUALS(offsets,lscan->offsets());
     }
 
 
     // Match, but in field 0
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     // Match to the left of target field, move only to next delimiter
     TS_ASSERT_EQUALS(",8,9",std::string(cbuf->head(),4));
     TS_ASSERT_EQUALS(false,match);
@@ -539,7 +539,7 @@ public:
       TS_ASSERT_EQUALS(offsets,lscan->offsets());
     }
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     // Match 11a, move to next newline
     TS_ASSERT_EQUALS(true,match);
     TS_ASSERT_EQUALS(",12",std::string(cbuf->head(),3));
@@ -549,20 +549,20 @@ public:
     }
 
     // Pathologic trailing delimiter; no error
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(",\n16",std::string(cbuf->head(),4));
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS("16",std::string(cbuf->head(),2));
 
     for(size_t i=0;i<2;i++){
       // No further matches; move to last delimiters in read_size
-      match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+      match = bmatcher->do_search(*cbuf, *lscan);
       TS_ASSERT_EQUALS(',',cbuf->head()[0]);
     }
 
     // Past Last line; move by read_size until only \0 characters follow
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(false,match);
     TS_ASSERT_EQUALS('\0',cbuf->head()[0]);
     {
@@ -574,28 +574,27 @@ public:
 
   void test_do_search_simple_complete_match(){
     auto cbuf = boost::scoped_ptr<csv::Circbuf>(create_circbuf(csv_path_simple));
-    auto matcher = boost::scoped_ptr<csv::Boyer_Moore_Matcher>(create_matcher("11a"));
-    auto bmatcher = boost::scoped_ptr<csv::Multiline_BMatcher>(create_bmatcher(1,false));
-    bool match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    auto bmatcher = boost::scoped_ptr<csv::Multiline_BMatcher>(create_bmatcher("11a",1,false));
+    bool match = bmatcher->do_search(*cbuf, *lscan);
 
     for(size_t i=0;i<2;i++) {
-      match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+      match = bmatcher->do_search(*cbuf, *lscan);
       TS_ASSERT_EQUALS(false,match);
       TS_ASSERT_EQUALS(',',cbuf->head()[0]);
     }
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(true,match);
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS("13,",std::string(cbuf->head(),3));
     for(size_t i=0;i<3;i++) {
-      match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+      match = bmatcher->do_search(*cbuf, *lscan);
       TS_ASSERT_EQUALS(false,match);
       TS_ASSERT_EQUALS(',',cbuf->head()[0]);
     }
 
-    match = bmatcher->do_search(*cbuf, *matcher, *lscan);
+    match = bmatcher->do_search(*cbuf, *lscan);
     TS_ASSERT_EQUALS(false,match);
     TS_ASSERT_EQUALS('\0',cbuf->head()[0]);
   }
