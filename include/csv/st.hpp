@@ -23,6 +23,8 @@ namespace st {
     if(s.size()!=1) throw std::runtime_error("Cannot convert string to char: " + s);
     return s[0];
   }
+
+  std::vector<std::string> split(const std::string& s, char delimiter);
 }
 
 #endif

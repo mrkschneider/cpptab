@@ -174,10 +174,10 @@ void run_select(const string& csv_path,
   // Prepare buffers
   Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
   Linescan lscan(delimiter, read_size);
-  unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
 
   // Scan and print header
   lscan.do_scan_header(cbuf.head(), cbuf.read_size());
+  unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
   printer->print(lscan);
 
   // Find requested column indexes
@@ -257,12 +257,12 @@ int main(int argc, const char* argv[]){
     CLI::App app{"CppCsv"};
     
     size_t read_size = 4096 * 4;
-    vector<string> columns;
-    vector<string> regexs;
-    vector<string> matchs;
+    string columns_s;
+    string regexes_s;
+    string matches_s;
     string csv_path = "";
     string delimiter_str = ",";
-    vector<string> out_columns;
+    string out_columns_s;
     bool complete_match = false;
 
     app.add_option("-d,--delimiter",delimiter_str,
@@ -272,33 +272,38 @@ int main(int argc, const char* argv[]){
       ->check(CLI::PositiveNumber);
 
     auto select_cmd = app.add_subcommand("select");
-    select_cmd->add_option("-c,--column",columns,"Column to match")->required()->delimiter(',');
-    select_cmd->add_option("-o,--out-columns",out_columns,
-			  "Output columns,separated by ',' (default all)")->delimiter(',');
+    select_cmd->add_option("-c,--column",columns_s,"Column to match")->required();
+    select_cmd->add_option("-o,--out-columns",out_columns_s,
+			  "Output columns,separated by ',' (default all)");
     select_cmd->add_flag("--complete",complete_match,"Require that fields match entirely (always active for --match)");
     select_cmd->add_option("csv",csv_path,"CSV path");
 
     auto input_optg = select_cmd->add_option_group("match")->required();
     auto regex_opt =
-      input_optg->add_option("-r,--regex",regexs,"Regex to match in selected column")->delimiter(',');
+      input_optg->add_option("-r,--regex",regexes_s,"Regex to match in selected column");
     auto match_opt =
-      input_optg->add_option("-m,--match",matchs,"Exact string to match in selected column")->delimiter(',');
+      input_optg->add_option("-m,--match",matches_s,"Exact string to match in selected column");
     regex_opt->excludes(match_opt);
     match_opt->excludes(regex_opt);
 
     auto cut_cmd = app.add_subcommand("cut");
-    cut_cmd->add_option("-c,--columns",out_columns,
-			  "Output columns,separated by ',' (default all)")->delimiter(',');
+    cut_cmd->add_option("-c,--columns",out_columns_s,
+			  "Output columns,separated by ',' (default all columns)");
     cut_cmd->add_option("csv",csv_path,"CSV path");
 
     app.require_subcommand(1);
     CLI11_PARSE(app, argc, argv);
 
+    vector<string> regexes = split(regexes_s,',');
+    vector<string> matches = split(matches_s,',');
+    vector<string> columns = split(columns_s,',');
+    vector<string> out_columns = split(out_columns_s,',');
+
     size_t buffer_size = read_size * 1000;
     char delimiter = str2char(delimiter_str);
 
     if(select_cmd->parsed()){
-      run_select(csv_path, columns, regexs, matchs,
+      run_select(csv_path, columns, regexes, matches,
 		 complete_match, delimiter,
 		 out_columns, 0, read_size, buffer_size);
     } else if(cut_cmd->parsed()){
