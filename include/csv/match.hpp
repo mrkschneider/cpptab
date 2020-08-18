@@ -1,5 +1,5 @@
-#ifndef INCLUDE_CSV_SELECT_HPP_
-#define INCLUDE_CSV_SELECT_HPP_
+#ifndef INCLUDE_CSV_MATCH_HPP_
+#define INCLUDE_CSV_MATCH_HPP_
 
 #include <stdio.h>
 #include <string.h>
@@ -272,29 +272,6 @@ namespace csv {
       _advance_next {0} {};
     bool do_search(Circbuf& c, Matcher& matcher, Linescan& result) override;
   };
-
-  class Linescan_Printer { // LCOV_EXCL_START
-  public:
-    virtual void print(const Linescan& sc_result) const = 0;
-    virtual ~Linescan_Printer(){};
-  }; // LCOV_EXCL_STOP
-
-  class Line_Printer : public Linescan_Printer { // LCOV_EXCL_START
-  public:
-    void print(const Linescan& sc_result) const override;
-  }; // LCOV_EXCL_STOP
-
-  class Field_Printer : public Linescan_Printer { // LCOV_EXCL_START
-  private:
-    const std::vector<size_t> _fields;
-    const char _delimiter;
-
-  public:
-    void print(const Linescan& sc_result) const override;
-    Field_Printer(std::vector<size_t> fields, char delimiter) :
-      _fields {fields}, _delimiter {delimiter} {};   
-  }; // LCOV_EXCL_STOP
-      
 
   inline char* simple_scan_left(const char* buf, uint n, char target){
     return (char*)memrchr(buf-n,target,n);
