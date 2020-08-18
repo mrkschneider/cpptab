@@ -24,16 +24,6 @@ enum class Buffer_Matcher_Type
   {
    LINE, MULTILINE
   };
-		   
-
-bool contains_special_chars(const string& regex){
-  bool match = false;
-  for(const char& c: ".[]{}()\\*+?|^$") {
-    match = regex.find(c) != string::npos;
-    if(match) return true;
-  }
-  return false;
-}
 
 Circbuf create_circbuf(string csv_path, size_t read_size, size_t buffer_size){
     if(!csv_path.empty())

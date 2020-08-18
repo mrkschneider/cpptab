@@ -223,3 +223,12 @@ bool csv::Singleline_BMatcher::do_search(Circbuf& c, Matcher& matcher,
   _advance_next = result.length();
   return match && is_complete;  
 }
+
+bool csv::contains_special_chars(const string& regex){
+  bool match = false;
+  for(const char& c: ".[]{}()\\*+?|^$") {
+    match = regex.find(c) != string::npos;
+    if(match) return true;
+  }
+  return false;
+}

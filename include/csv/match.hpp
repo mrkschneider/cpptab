@@ -280,6 +280,8 @@ namespace csv {
     return (char*)memchr(buf,target,n);
   }
 
+  bool contains_special_chars(const std::string& regex);
+
 }
 
 #endif
