@@ -2,6 +2,7 @@
 #include <poll.h>
 
 #include <boost/regex.hpp>
+#include <boost/format.hpp>
 #include <CLI/CLI.hpp>
 
 #include <csv/st.hpp>
@@ -78,6 +79,26 @@ unique_ptr<Buffer_Matcher> create_buffer_matcher(Buffer_Matcher_Type bmatcher_ty
   return r;
 }
 
+vector<unique_ptr<Singleline_BMatcher>> create_shadow_buffer_matchers(
+					   Matcher_Type matcher_type,
+					   const vector<string>& patterns,
+					   const vector<size_t>& pattern_fields,
+					   char delimiter,
+					   bool complete_match){
+  vector<unique_ptr<Singleline_BMatcher>> bmatchers;
+  for(size_t i=0;i<patterns.size();i++){
+    const string& p = patterns[i];
+    size_t col = pattern_fields[i];
+    unique_ptr<Matcher> m = create_matcher(matcher_type, p);
+    auto ptr = make_unique<Singleline_BMatcher>(move(m),
+						delimiter,
+						col,
+						complete_match); 
+    bmatchers.push_back(move(ptr));
+  }
+  return bmatchers;
+}
+
 size_t column_index(const Linescan& sc_result, string column){
 
   for(size_t col=0;col<sc_result.n_fields();col++){
@@ -107,74 +128,103 @@ unique_ptr<Linescan_Printer> create_printer(const Linescan& sc_result, char deli
   return r;
 }
 
-inline char str2char(string s){
-  if(s.size()!=1) throw runtime_error("Cannot convert string to char: " + s);
-  return s[0];
-}
-
-void run_select(string csv_path,
-		string column,
-		string regex,
-		string match,
+void run_select(const string& csv_path,
+		const vector<string>& columns,
+		const vector<string>& regexs,
+		const vector<string>& matchs,
 		bool complete_match,
 		char delimiter,
-		vector<string> out_columns,
+		const vector<string>& out_columns,
+		int lead_regex_idx,
 		size_t read_size,
 		size_t buffer_size){
-    string pattern;
-    Matcher_Type matcher_type;
-    Buffer_Matcher_Type bmatcher_type;
+  vector<string> patterns;
+  Matcher_Type matcher_type;
+  Matcher_Type shadow_matcher_type;
+  Buffer_Matcher_Type bmatcher_type;
+
+  // Check input, setup vars
+  if(!regexs.empty()) {
+    matcher_type = shadow_matcher_type = Matcher_Type::REGEX;
+    patterns = regexs;
+  }
+  else if(!matchs.empty()){
+    matcher_type = shadow_matcher_type = Matcher_Type::BOYER_MOORE;
+    patterns = matchs;
+    complete_match = true;
+  }
+  else throw runtime_error("Could not determine matcher type");
+
+  if(patterns.size() != columns.size())
+    throw runtime_error(str(boost::format("Mismatch: %lu patterns vs. %lu columns")
+			    % patterns.size()
+			    % columns.size()));
+  
+  string lead_regex = patterns[lead_regex_idx];
+  if(matcher_type == Matcher_Type::REGEX && (!(contains_special_chars(lead_regex)))){
+    matcher_type = Matcher_Type::BOYER_MOORE;
+  }
     
-    if(!regex.empty()) {
-      matcher_type = Matcher_Type::REGEX;
-      pattern = regex;
-    }
-    else if(!match.empty()){
-      matcher_type = Matcher_Type::BOYER_MOORE;
-      pattern = match;
-      complete_match = true;
-    }
-    else throw runtime_error("Could not determine matcher type");
+  if(matcher_type == Matcher_Type::BOYER_MOORE && lead_regex.size() > 3){
+    bmatcher_type = Buffer_Matcher_Type::MULTILINE;
+  } else {
+    bmatcher_type = Buffer_Matcher_Type::LINE;
+  }
 
-    if(matcher_type == Matcher_Type::REGEX && (!(contains_special_chars(regex)))){
-      matcher_type = Matcher_Type::BOYER_MOORE;
+  // Prepare buffers
+  Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
+  Linescan lscan(delimiter, read_size);
+  unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
+
+  // Scan and print header
+  lscan.do_scan_header(cbuf.head(), cbuf.read_size());
+  printer->print(lscan);
+
+  // Find requested column indexes
+  vector<size_t> cols;
+  for(const string& col:columns)
+    cols.push_back(column_index(lscan, col));
+
+  // Find column index of lead column
+  size_t lead_col = cols[lead_regex_idx];
+
+  // Prepare leftover column/match pairs for shadow matchers
+  patterns.erase(patterns.begin() + lead_regex_idx);
+  cols.erase(cols.begin() + lead_regex_idx);
+  
+  unique_ptr<Buffer_Matcher> lead_bmatcher = create_buffer_matcher(bmatcher_type,
+								   matcher_type,
+								   lead_regex,
+								   delimiter,
+								   lead_col, complete_match);
+  
+  vector<unique_ptr<Singleline_BMatcher>> shadow_bmatchers = create_shadow_buffer_matchers(
+								 shadow_matcher_type,
+								 patterns,
+								 cols,
+								 delimiter,
+								 complete_match);
+  // Move past header
+  cbuf.advance_head(lscan.length());
+
+  // Match loop
+  while(!cbuf.at_eof()){
+  outer:
+    bool match = lead_bmatcher->do_search(cbuf, lscan);
+    if(!match) continue;
+    for(size_t i=0;i<shadow_bmatchers.size();i++){
+      match = shadow_bmatchers[i]->match(lscan);
+      if(!match) goto outer;
     }
-    
-    if(matcher_type == Matcher_Type::BOYER_MOORE && pattern.size() > 3){
-      bmatcher_type = Buffer_Matcher_Type::MULTILINE;
-    } else {
-      bmatcher_type = Buffer_Matcher_Type::LINE;
-    }
-    
-    Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
-    Linescan lscan(delimiter, read_size);
-
-    lscan.do_scan_header(cbuf.head(), cbuf.read_size());
-
-    unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
-
     printer->print(lscan);
+  }
 
-    size_t col = column_index(lscan, column);
-
-    unique_ptr<Buffer_Matcher> bmatcher = create_buffer_matcher(bmatcher_type,
-								matcher_type,
-								pattern,
-								delimiter,
-								col, complete_match);
-
-    cbuf.advance_head(lscan.length());
-    while(!cbuf.at_eof()){
-      bool match = bmatcher->do_search(cbuf, lscan);
-      if(match) printer->print(lscan);
-    }
-
-    return;
+  return;
 }
 
-void run_cut(string csv_path,
+void run_cut(const string& csv_path,
 	     char delimiter,
-	     vector<string> out_columns,
+	     const vector<string>& out_columns,
 	     size_t read_size,
 	     size_t buffer_size){
   Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
@@ -207,9 +257,9 @@ int main(int argc, const char* argv[]){
     CLI::App app{"CppCsv"};
     
     size_t read_size = 4096 * 4;
-    string column = "";
-    string regex = "";
-    string match = "";
+    vector<string> columns;
+    vector<string> regexs;
+    vector<string> matchs;
     string csv_path = "";
     string delimiter_str = ",";
     vector<string> out_columns;
@@ -222,7 +272,7 @@ int main(int argc, const char* argv[]){
       ->check(CLI::PositiveNumber);
 
     auto select_cmd = app.add_subcommand("select");
-    select_cmd->add_option("-c,--column",column,"Column to match")->required();
+    select_cmd->add_option("-c,--column",columns,"Column to match")->required()->delimiter(',');
     select_cmd->add_option("-o,--out-columns",out_columns,
 			  "Output columns,separated by ',' (default all)")->delimiter(',');
     select_cmd->add_flag("--complete",complete_match,"Require that fields match entirely (always active for --match)");
@@ -230,9 +280,9 @@ int main(int argc, const char* argv[]){
 
     auto input_optg = select_cmd->add_option_group("match")->required();
     auto regex_opt =
-      input_optg->add_option("-r,--regex",regex,"Regex to match in selected column");
+      input_optg->add_option("-r,--regex",regexs,"Regex to match in selected column")->delimiter(',');
     auto match_opt =
-      input_optg->add_option("-m,--match",match,"Exact string to match in selected column");
+      input_optg->add_option("-m,--match",matchs,"Exact string to match in selected column")->delimiter(',');
     regex_opt->excludes(match_opt);
     match_opt->excludes(regex_opt);
 
@@ -248,9 +298,9 @@ int main(int argc, const char* argv[]){
     char delimiter = str2char(delimiter_str);
 
     if(select_cmd->parsed()){
-      run_select(csv_path, column, regex, match,
+      run_select(csv_path, columns, regexs, matchs,
 		 complete_match, delimiter,
-		 out_columns, read_size, buffer_size);
+		 out_columns, 0, read_size, buffer_size);
     } else if(cut_cmd->parsed()){
       run_cut(csv_path, delimiter, out_columns, read_size, buffer_size);
     } else {

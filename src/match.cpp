@@ -142,11 +142,6 @@ bool csv::Boyer_Moore_Matcher::do_search(const char* begin, size_t n){
   return r.first != r.second;
 }
 
-bool csv::Multiline_BMatcher::match(const Linescan& result){
-  throw runtime_error("Unsupported operation");
-}
-
-
 bool csv::Multiline_BMatcher::do_search(Circbuf& c, Linescan& result){
   const char* head = c.advance_head(_advance_next);
   size_t read_size = c.read_size();
