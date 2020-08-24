@@ -117,7 +117,7 @@ unique_ptr<Linescan_Printer> create_printer(const Linescan& sc_result, char deli
 					     const vector<string>& out_columns){
   unique_ptr<Linescan_Printer> r(nullptr);
   if(out_columns.empty()) {
-    r = make_unique<Line_Printer>();
+    r = make_unique<Linescan_Line_Printer>();
     return r;
   }
   vector<size_t> idxs;
@@ -125,7 +125,7 @@ unique_ptr<Linescan_Printer> create_printer(const Linescan& sc_result, char deli
     size_t idx = column_index(sc_result,column);
     idxs.push_back(idx);
   }
-  r = make_unique<Field_Printer>(idxs,delimiter);
+  r = make_unique<Linescan_Field_Printer>(idxs,delimiter);
   return r;
 }
 

@@ -23,19 +23,19 @@ namespace csv {
     virtual ~Linescan_Printer(){};
   }; // LCOV_EXCL_STOP
 
-  class Line_Printer : public Linescan_Printer { // LCOV_EXCL_START
+  class Linescan_Line_Printer : public Linescan_Printer { // LCOV_EXCL_START
   public:
     void print(const Linescan& sc_result) const override;
   }; // LCOV_EXCL_STOP
 
-  class Field_Printer : public Linescan_Printer { // LCOV_EXCL_START
+  class Linescan_Field_Printer : public Linescan_Printer { // LCOV_EXCL_START
   private:
     const std::vector<size_t> _fields;
     const char _delimiter;
 
   public:
     void print(const Linescan& sc_result) const override;
-    Field_Printer(std::vector<size_t> fields, char delimiter) :
+    Linescan_Field_Printer(std::vector<size_t> fields, char delimiter) :
       _fields {fields}, _delimiter {delimiter} {};   
   }; // LCOV_EXCL_STOP
 
