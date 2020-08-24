@@ -15,6 +15,7 @@ using namespace std;
 using namespace st;
 using namespace csv;
 
+static const char ARG_DELIMITER = ',';
 
 enum class Matcher_Type
   {
@@ -272,32 +273,32 @@ int main(int argc, const char* argv[]){
       ->check(CLI::PositiveNumber);
 
     auto select_cmd = app.add_subcommand("select");
-    select_cmd->add_option("-c,--column",columns_s,"Column to match")->required();
+    select_cmd->add_option("-c,--column",columns_s,"Columns to match, separated by ','")->required();
     select_cmd->add_option("-o,--out-columns",out_columns_s,
-			  "Output columns,separated by ',' (default all)");
+			  "Output columns, separated by ',' (default all)");
     select_cmd->add_flag("--complete",complete_match,"Require that fields match entirely (always active for --match)");
     select_cmd->add_option("csv",csv_path,"CSV path");
 
     auto input_optg = select_cmd->add_option_group("match")->required();
     auto regex_opt =
-      input_optg->add_option("-r,--regex",regexes_s,"Regex to match in selected column");
+      input_optg->add_option("-r,--regex",regexes_s,"Regexes to match in selected columns, separated by ','");
     auto match_opt =
-      input_optg->add_option("-m,--match",matches_s,"Exact string to match in selected column");
+      input_optg->add_option("-m,--match",matches_s,"Exact strings to match in selected columns, separated by ','");
     regex_opt->excludes(match_opt);
     match_opt->excludes(regex_opt);
 
     auto cut_cmd = app.add_subcommand("cut");
     cut_cmd->add_option("-c,--columns",out_columns_s,
-			  "Output columns,separated by ',' (default all columns)");
+			  "Output columns, separated by ',' (default all columns)");
     cut_cmd->add_option("csv",csv_path,"CSV path");
 
     app.require_subcommand(1);
     CLI11_PARSE(app, argc, argv);
 
-    vector<string> regexes = split(regexes_s,',');
-    vector<string> matches = split(matches_s,',');
-    vector<string> columns = split(columns_s,',');
-    vector<string> out_columns = split(out_columns_s,',');
+    vector<string> regexes = split(regexes_s,ARG_DELIMITER);
+    vector<string> matches = split(matches_s,ARG_DELIMITER);
+    vector<string> columns = split(columns_s,ARG_DELIMITER);
+    vector<string> out_columns = split(out_columns_s,ARG_DELIMITER);
 
     size_t buffer_size = read_size * 1000;
     char delimiter = str2char(delimiter_str);
