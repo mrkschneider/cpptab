@@ -142,7 +142,6 @@ bool csv::Boyer_Moore_Matcher::do_search(const char* begin, size_t n){
   return r.first != r.second;
 }
 
-
 bool csv::Multiline_BMatcher::do_search(Circbuf& c, Linescan& result){
   const char* head = c.advance_head(_advance_next);
   size_t read_size = c.read_size();
@@ -208,20 +207,24 @@ bool csv::Multiline_BMatcher::do_search(Circbuf& c, Linescan& result){
   throw runtime_error("Unreachable code");
 }
 
+bool csv::Singleline_BMatcher::match(const Linescan& lscan){
+  const char* match_field = lscan.field(_pattern_field);
+  size_t match_field_size = lscan.field_size(_pattern_field);
+
+  bool match = _matcher->do_search(match_field, match_field_size);
+  bool is_complete = (!(_complete_match)) || match_field_size == _matcher->size();
+  return match && is_complete;
+}
+
 bool csv::Singleline_BMatcher::do_search(Circbuf& c, Linescan& result){
   size_t read_size = c.read_size();
   const char* head = c.advance_head(_advance_next);
   if(c.at_eof()) return false;
   result.do_scan(head,read_size);
 
-  const char* match_field = result.field(_pattern_field);
-  size_t match_field_size = result.field_size(_pattern_field);
-
-  bool match = _matcher->do_search(match_field, match_field_size);
-  bool is_complete = (!(_complete_match)) || match_field_size == _matcher->size();
-
+  bool match = this->match(result);
   _advance_next = result.length();
-  return match && is_complete;  
+  return match;  
 }
 
 bool csv::contains_special_chars(const string& regex){

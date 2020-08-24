@@ -256,6 +256,7 @@ namespace csv {
       _complete_match {complete_match},
       _advance_next {0} {};
     bool do_search(Circbuf& c, Linescan& result) override;
+    virtual ~Multiline_BMatcher(){};
 
     Multiline_BMatcher(const Multiline_BMatcher& o) = delete; 
     Multiline_BMatcher& operator=(const Multiline_BMatcher& o) = delete;
@@ -280,6 +281,8 @@ namespace csv {
       _complete_match {complete_match},
       _advance_next {0} {};
     bool do_search(Circbuf& c, Linescan& result) override;
+    bool match(const Linescan& lscan);
+    virtual ~Singleline_BMatcher(){};
 
     Singleline_BMatcher(const Singleline_BMatcher& o) = delete; 
     Singleline_BMatcher& operator=(const Singleline_BMatcher& o) = delete;
