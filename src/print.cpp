@@ -3,23 +3,30 @@
 using namespace std;
 using namespace csv;
 
+
+// LCOV_EXCL_START
+void csv::Field_Printer::print(const char* buf,
+			       const std::vector<size_t>& offsets) const {
+  size_t fields_n = _fields.size() - 1;
+  for(size_t i=0;i<fields_n;i++){
+    csv::print_field(buf, offsets, _fields[i]);
+    putc(_delimiter,stdout);
+  }
+  csv::print_field(buf, offsets, _fields[fields_n]);
+  if(_crnl){
+    putc('\r',stdout);
+  }
+  putc('\n',stdout);
+}
+// LCOV_EXCL_END
+
 void csv::Linescan_Line_Printer::print(const Linescan& sc_result) const { // LCOV_EXCL_START
-  fwrite(sc_result.begin(), sizeof(char), sc_result.length()-1, stdout);
+  csv::print(sc_result.begin(), sc_result.length()-1);
   putc('\n',stdout);
 }
 // LCOV_EXCL_STOP
 
 void csv::Linescan_Field_Printer::print(const Linescan& sc_result) const { // LCOV_EXCL_START
-  size_t fields_n = _fields.size();
-  for(size_t i=0;i<fields_n;i++){
-    const size_t& field = _fields[i];
-    fwrite(sc_result.field(field), sizeof(char), sc_result.field_size(field), stdout);	
-    if(i<fields_n-1)
-      putc(_delimiter,stdout);
-  }
-  if(sc_result.crnl()){
-    putc('\r',stdout);
-  }
-  putc('\n',stdout);
+  _printer->print(sc_result.begin(), sc_result.offsets());
 }
 // LCOV_EXCL_STOP

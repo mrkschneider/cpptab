@@ -17,6 +17,40 @@
 
 namespace csv {
 
+  // LCOV_EXCL_START
+  inline void print(const char* buf, size_t length) {
+    fwrite(buf, sizeof(char), length, stdout);
+  }
+  // LCOV_EXCL_END
+  
+
+  // LCOV_EXCL_START
+  inline void print_field(const char* buf,
+			  const std::vector<size_t>& offsets,
+			  size_t field_idx){
+    size_t next_field_idx = field_idx + 1;
+    assert(offsets.size() > next_field_idx);
+    size_t offset = offsets[field_idx];
+    size_t length = offsets[next_field_idx] - offset - 1;
+    csv::print(buf + offset, length);
+  }
+  // LCOV_EXCL_END
+
+  class Field_Printer {
+  private:
+    const std::vector<size_t> _fields;
+    const char _delimiter;
+    const bool _crnl;
+    
+  public:
+    void print(const char* buf,
+	       const std::vector<size_t>& offsets) const;
+    Field_Printer(std::vector<size_t> fields,
+		  char delimiter,
+		  bool crnl) :
+      _fields {fields}, _delimiter {delimiter}, _crnl {crnl} {};
+  };
+
   class Linescan_Printer { // LCOV_EXCL_START
   public:
     virtual void print(const Linescan& sc_result) const = 0;
@@ -30,13 +64,12 @@ namespace csv {
 
   class Linescan_Field_Printer : public Linescan_Printer { // LCOV_EXCL_START
   private:
-    const std::vector<size_t> _fields;
-    const char _delimiter;
+    const std::unique_ptr<csv::Field_Printer> _printer;
 
   public:
     void print(const Linescan& sc_result) const override;
-    Linescan_Field_Printer(std::vector<size_t> fields, char delimiter) :
-      _fields {fields}, _delimiter {delimiter} {};   
+    Linescan_Field_Printer(std::unique_ptr<csv::Field_Printer> printer) :
+      _printer {std::move(printer)} {};   
   }; // LCOV_EXCL_STOP
 
 }

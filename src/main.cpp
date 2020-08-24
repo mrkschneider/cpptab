@@ -125,7 +125,9 @@ unique_ptr<Linescan_Printer> create_printer(const Linescan& sc_result, char deli
     size_t idx = column_index(sc_result,column);
     idxs.push_back(idx);
   }
-  r = make_unique<Linescan_Field_Printer>(idxs,delimiter);
+  r = make_unique<Linescan_Field_Printer>(make_unique<Field_Printer>(idxs,
+								     delimiter,
+								     sc_result.crnl()));
   return r;
 }
 
