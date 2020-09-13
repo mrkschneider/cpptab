@@ -1,3 +1,0 @@
-[submodule "test/modules/cxxtest"]
-	path = test/modules/cxxtest
-	url = /storage/share/mschneider/src_extern/cxxtest/4.3/cxxtest-4.3/
