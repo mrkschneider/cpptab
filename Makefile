@@ -1,5 +1,5 @@
 include Makefile.env
-PROJNAME=csv
+PROJNAME=tab
 INCLUDEDIRS=include $(BOOSTDIR)/include $(CIRCBUFDIR)/include $(LINESCANDIR)/include $(ONIGDIR)/include $(CLI11DIR)/include
 LIBDIRS=$(OUTLIBDIR) $(BOOSTDIR)/lib $(CIRCBUFDIR)/lib $(LINESCANDIR)/lib $(ONIGDIR)/lib
 LIBNAMES=circbuf linescan :libboost_regex.a :libonig.a
@@ -11,8 +11,8 @@ TEST_SRCDIR=test
 TEST_DEBUG_OUTDIR=test_out_debug
 TEST_OPT_OUTDIR=test_out_opt
 TEST_BIN=testrunner
-OUTBIN_DEBUG=debug.out
-OUTBIN_OPT=main.out
+OUTBIN_DEBUG=$(PROJNAME).debug
+OUTBIN_OPT=$(PROJNAME)
 SHELL=/bin/bash
 SRC_EXTENSION=.cpp
 
@@ -95,5 +95,6 @@ clean_test: clean_profile
 clean: clean_profile clean_test
 	rm -rf $(OBJDIR_DEBUG) $(OBJDIR_OPT)
 	rm -f lib/*.a
+	rm -f $(OUTBIN_DEBUG) $(OUTBIN_TEST)
 
 all: clean debug opt test coverage test_opt

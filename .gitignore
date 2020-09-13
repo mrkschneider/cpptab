@@ -20,3 +20,5 @@ obj_debug/
 obj/
 test_out_debug/
 test_out_opt/
+tab
+tab.debug

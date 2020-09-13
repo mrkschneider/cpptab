@@ -257,7 +257,7 @@ int main(int argc, const char* argv[]){
     char out[STDOUT_SIZE];
     setvbuf(stdout, out, _IOFBF, STDOUT_SIZE);
 
-    CLI::App app{"CppCsv"};
+    CLI::App app{"tab - tabular processing of CSV files"};
     
     size_t read_size = 4096 * 4;
     string columns_s;
