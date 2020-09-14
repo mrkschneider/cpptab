@@ -4,7 +4,7 @@
 cpptab is a command line tool for processing CSV files, inspired by [csvkit](https://github.com/wireservice/csvkit) and [xsv](https://github.com/BurntSushi/xsv). It is very much a toy project, aiming at balancing fast runtime speed with clear, maintainable source code. Due to the complexities of character encoding and CSV formats in the wild, bugs are to be expected at this stage.
 
 ## Dependencies
-To compile cpptab, environment variables to the paths of the following libraries must be set:
+To compile cpptab, create a file called 'Makefile.env' in the project directory, setting environment variables to the paths of the following libraries:
 
 * **BOOSTDIR** - [Boost](https://www.boost.org/) (1.73+)
 * **ONIGDIR** - [Oniguruma](https://github.com/kkos/oniguruma) (6.9.5-r1+)
