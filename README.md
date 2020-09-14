@@ -10,8 +10,8 @@ To compile cpptab, environment variables to the paths of the following libraries
 * **ONIGDIR** - [Oniguruma](https://github.com/kkos/oniguruma) (6.9.5-r1+)
 * **CLI11DIR** - [CLI11](https://github.com/CLIUtils/CLI11) (2.0+)
 * **CXXTESTDIR** - [CxxTest](http://cxxtest.com/) (4.4+)
-* **CIRCBUFDIR** - circbuf (TBD)
-* **LINESCANDIR** - linescan (TBD)
+* **CIRCBUFDIR** - [circbuf](https://github.com/mrkschneider/circbuf)
+* **LINESCANDIR** - [linescan](https://github.com/mrkschneider/linescan)
 
 ## Commands
 Use tab --help and tab <Subcommand> --help to get a full list of implemented commands and arguments. Input CSV files can be supplied as positional arguments or via STDIN.
