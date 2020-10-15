@@ -227,6 +227,31 @@ bool csv::Singleline_BMatcher::do_search(Circbuf& c, Linescan& result){
   return match;  
 }
 
+unique_ptr<Csv> Csv::create(unique_ptr<Circbuf> cbuf, char delimiter){
+  size_t read_size = cbuf->read_size();
+  Linescan lscan(delimiter, read_size);
+  lscan.do_scan_header(cbuf->head(), read_size);
+
+  auto columns = make_unique<vector<string>>();
+  auto fieldss = make_unique<vector<vector<string>>>();
+  for(size_t i=0;i<lscan.n_fields();i++)
+    columns->push_back(lscan.field_str(i));
+  cbuf->advance_head(lscan.length());
+  
+  while(!cbuf->at_eof()){
+    char* head = cbuf->head();
+    lscan.do_scan(head,read_size);
+    vector<string> fields;
+    for(size_t i=0;i<lscan.n_fields();i++)
+      fields.push_back(lscan.field_str(i));
+    fieldss->push_back(fields);
+    cbuf->advance_head(lscan.length());
+  }
+
+  unique_ptr<Csv> r = make_unique<Csv>(std::move(columns),std::move(fieldss));
+  return r;
+}
+
 bool csv::contains_special_chars(const string& regex){
   bool match = false;
   for(const char& c: ".[]{}()\\*+?|^$") {

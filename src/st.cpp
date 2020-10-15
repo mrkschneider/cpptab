@@ -24,3 +24,10 @@ std::vector<std::string> st::split(const std::string& s, char delimiter){
   }
   return v;
 }
+
+std::vector<size_t> st::numbers(size_t start, size_t end) {
+    std::vector<size_t> r;
+    for(size_t i=start;i<end;i++)
+      r.push_back(i);
+    return r;
+}

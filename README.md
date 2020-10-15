@@ -18,6 +18,7 @@ Use tab --help and tab <Subcommand> --help to get a full list of implemented com
 
 * **select** - Print rows with particular columns values. Takes either a regular character string or regular expression.
 * **cut** - Print a selection of columns.
+* **join** - Join two columns (similar to a natural join)
 
 ## CSV format
 Different delimiters can be selected, but are limited to a single character. Strictly speaking, only ASCII encoding is supported, although it should work for most UTF-8 files. Explicit support for different encodings might be added later. Quotes and escape sequences are not supported right now.
@@ -25,7 +26,7 @@ Different delimiters can be selected, but are limited to a single character. Str
 ## Future plans
 Additional possible/planned features include
 
-* Join operations for combining multiple tables
+* Additional join operations (left, right, full join) for combining multiple tables
 * Different encodings
 * Quotes
 * Table summary and statistics

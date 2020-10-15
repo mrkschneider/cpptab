@@ -2,7 +2,7 @@ include Makefile.env
 PROJNAME=tab
 INCLUDEDIRS=include $(BOOSTDIR)/include $(CIRCBUFDIR)/include $(LINESCANDIR)/include $(ONIGDIR)/include $(CLI11DIR)/include
 LIBDIRS=$(OUTLIBDIR) $(BOOSTDIR)/lib $(CIRCBUFDIR)/lib $(LINESCANDIR)/lib $(ONIGDIR)/lib
-LIBNAMES=circbuf linescan :libboost_regex.a :libonig.a
+LIBNAMES=circbuf linescan :libboost_regex.a :libboost_serialization.a :libonig.a 
 OUTLIBDIR=lib
 OUTLIBNAME_DEBUG=$(PROJNAME).debug
 OUTLIBNAME_OPT=$(PROJNAME)
@@ -59,16 +59,19 @@ $(OBJECTS_OPT): $(OBJDIR_OPT)/%.o: %$(SRC_EXTENSION)
 	$(CPP) -c $(CPPFLAGS) $(OPTIMIZEFLAGS) $(INCLUDELINE) $(LIBLINE) -o $@ $< $(LIBNAMELINE)
 
 debug: $(OBJECTS_DEBUG)
+	mkdir -p $(OUTLIBDIR)
 	ar rcs $(OUTLIBDIR)/lib$(OUTLIBNAME_DEBUG).a $(OBJECTS_DEBUG)
 	$(CPP) $(CPPFLAGS) $(DEBUGFLAGS) $(PROFILEFLAGS) $(INCLUDELINE) $(LIBLINE) -o $(OUTBIN_DEBUG) $(OBJECTS_DEBUG) $(LIBNAMELINE)
 
 opt: $(OBJECTS_OPT) 
+	mkdir -p $(OUTLIBDIR)
 	ar rcs $(OUTLIBDIR)/lib$(OUTLIBNAME_OPT).a $(OBJECTS_OPT)
 	$(CPP) $(CPPFLAGS) $(OPTIMIZEFLAGS) $(INCLUDELINE) $(LIBLINE) -o $(OUTBIN_OPT) $(OBJECTS_OPT) $(LIBNAMELINE)
 
 test: clean_test debug
+	mkdir -p $(TEST_DEBUG_OUTDIR)
 	lcov -q --no-external --capture --initial --directory . --output-file coverage.base.info --exclude '*main.cpp'
-	cxxtestgen --error-printer -o $(TEST_DEBUG_OUTDIR)/tests.cpp $(TEST_SOURCES)
+	$(CXXTESTDIR)/bin/cxxtestgen --error-printer -o $(TEST_DEBUG_OUTDIR)/tests.cpp $(TEST_SOURCES)
 	$(CPP) $(CPPFLAGS) $(DEBUGFLAGS) $(PROFILEFLAGS) $(TEST_INCLUDELINE) $(TEST_LIBLINE) -o $(TEST_DEBUG_OUTDIR)/tests.o $(TEST_DEBUG_OUTDIR)/tests.cpp $(TEST_DEBUG_LIBNAMELINE)
 	$(TEST_DEBUG_OUTDIR)/tests.o -v
 
@@ -78,7 +81,8 @@ coverage: test .make_run_always
 	genhtml coverage.info -q --output-directory coverage
 
 test_opt: clean_test opt
-	cxxtestgen --error-printer -o $(TEST_OPT_OUTDIR)/tests.cpp $(TEST_SOURCES)
+	mkdir -p $(TEST_OPT_OUTDIR)
+	$(CXXTESTDIR)/bin/cxxtestgen --error-printer -o $(TEST_OPT_OUTDIR)/tests.cpp $(TEST_SOURCES)
 	$(CPP) $(CPPFLAGS) $(OPTIMIZEFLAGS) $(TEST_INCLUDELINE) $(TEST_LIBLINE) -o $(TEST_OPT_OUTDIR)/tests.o $(TEST_OPT_OUTDIR)/tests.cpp $(TEST_OPT_LIBNAMELINE)
 	$(TEST_OPT_OUTDIR)/tests.o -v
 

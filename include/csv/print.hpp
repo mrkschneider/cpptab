@@ -41,14 +41,20 @@ namespace csv {
     const std::vector<size_t> _fields;
     const char _delimiter;
     const bool _crnl;
+    const bool _nl;
+    const bool _cont;
     
   public:
     void print(const char* buf,
 	       const std::vector<size_t>& offsets) const;
+    void print(const std::vector<std::string>& fields) const;
     Field_Printer(std::vector<size_t> fields,
 		  char delimiter,
-		  bool crnl) :
-      _fields {fields}, _delimiter {delimiter}, _crnl {crnl} {};
+		  bool crnl,
+		  bool nl,
+		  bool cont) :
+      _fields {fields}, _delimiter {delimiter}, _crnl {crnl},
+      _nl {nl}, _cont {cont} {};
   };
 
   class Linescan_Printer { // LCOV_EXCL_START

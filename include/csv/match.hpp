@@ -192,6 +192,8 @@ namespace csv {
     size_t n_fields() const {return _n_fields;};
     const std::vector<size_t>& offsets() const {return _offsets;};
     bool crnl() const {return _crnl;};
+    std::string field_str(size_t idx) const {return std::string(this->field(idx),
+								this->field_size(idx));};
 
     const char* field(size_t idx) const;
     size_t field_size(size_t idx) const;
@@ -287,6 +289,25 @@ namespace csv {
     Singleline_BMatcher(const Singleline_BMatcher& o) = delete; 
     Singleline_BMatcher& operator=(const Singleline_BMatcher& o) = delete;
   };
+
+  class Csv {
+  private:
+    std::unique_ptr<std::vector<std::string>> _columns;
+    std::unique_ptr<std::vector<std::vector<std::string>>> _fieldss;
+
+  public:
+    Csv(std::unique_ptr<std::vector<std::string>> columns,
+	std::unique_ptr<std::vector<std::vector<std::string>>> fieldss) :
+      _columns {std::move(columns)}, _fieldss {std::move(fieldss)} {};
+
+    static std::unique_ptr<Csv> create(std::unique_ptr<Circbuf> cbuf,
+				       char delimiter);
+
+    const std::vector<std::string>& columns() const { return *_columns; };
+    const std::vector<std::vector<std::string>>& fieldss() const { return *_fieldss; };
+
+  };
+  
 
   inline char* simple_scan_left(const char* buf, uint n, char target){
     return (char*)memrchr(buf-n,target,n);

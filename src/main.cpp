@@ -27,16 +27,16 @@ enum class Buffer_Matcher_Type
    LINE, MULTILINE
   };
 
-Circbuf create_circbuf(string csv_path, size_t read_size, size_t buffer_size){
-    if(!csv_path.empty())
-      return Circbuf(csv_path, read_size, buffer_size);
-
-    struct pollfd pfd = { fileno(stdin), POLLIN };
-    int rc = poll(&pfd,1,POLL_TIMEOUT);
-    if(rc > 0 && pfd.revents & POLLIN)
-      return Circbuf(stdin, read_size, buffer_size);
-    else
-      throw runtime_error("Could not read data from file or STDIN");
+unique_ptr<Circbuf> create_circbuf(string csv_path, size_t read_size, size_t buffer_size){
+  if(!csv_path.empty())
+    return make_unique<Circbuf>(csv_path,read_size,buffer_size);
+  
+  struct pollfd pfd = { fileno(stdin), POLLIN };
+  int rc = poll(&pfd,1,POLL_TIMEOUT);
+  if(rc > 0 && pfd.revents & POLLIN)
+    return make_unique<Circbuf>(stdin, read_size, buffer_size);
+  else
+    throw runtime_error("Could not read data from file or STDIN");
 }
 
 unique_ptr<Matcher> create_matcher(Matcher_Type matcher_type,
@@ -127,7 +127,9 @@ unique_ptr<Linescan_Printer> create_printer(const Linescan& sc_result, char deli
   }
   r = make_unique<Linescan_Field_Printer>(make_unique<Field_Printer>(idxs,
 								     delimiter,
-								     sc_result.crnl()));
+								     sc_result.crnl(),
+								     true,
+								     false));
   return r;
 }
 
@@ -175,11 +177,11 @@ void run_select(const string& csv_path,
   }
 
   // Prepare buffers
-  Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
+  unique_ptr<Circbuf> cbuf = create_circbuf(csv_path, read_size, buffer_size);
   Linescan lscan(delimiter, read_size);
 
   // Scan and print header
-  lscan.do_scan_header(cbuf.head(), cbuf.read_size());
+  lscan.do_scan_header(cbuf->head(), cbuf->read_size());
   unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
   printer->print(lscan);
 
@@ -208,12 +210,12 @@ void run_select(const string& csv_path,
 								 delimiter,
 								 complete_match);
   // Move past header
-  cbuf.advance_head(lscan.length());
+  cbuf->advance_head(lscan.length());
 
   // Match loop
-  while(!cbuf.at_eof()){
+  while(!cbuf->at_eof()){
   outer:
-    bool match = lead_bmatcher->do_search(cbuf, lscan);
+    bool match = lead_bmatcher->do_search(*cbuf, lscan);
     if(!match) continue;
     for(size_t i=0;i<shadow_bmatchers.size();i++){
       match = shadow_bmatchers[i]->match(lscan);
@@ -230,24 +232,132 @@ void run_cut(const string& csv_path,
 	     const vector<string>& out_columns,
 	     size_t read_size,
 	     size_t buffer_size){
-  Circbuf cbuf = create_circbuf(csv_path, read_size, buffer_size);
+  unique_ptr<Circbuf> cbuf = create_circbuf(csv_path, read_size, buffer_size);
   Linescan lscan(delimiter, read_size);
 
-  lscan.do_scan_header(cbuf.head(), cbuf.read_size());
+  lscan.do_scan_header(cbuf->head(), cbuf->read_size());
 
   unique_ptr<Linescan_Printer> printer = create_printer(lscan, delimiter, out_columns);
   printer->print(lscan);
 
-  cbuf.advance_head(lscan.length());
-  while(!cbuf.at_eof()){
-    char* head = cbuf.head();
+  cbuf->advance_head(lscan.length());
+  while(!cbuf->at_eof()){
+    char* head = cbuf->head();
     char* del = simple_scan_right(head,read_size,delimiter);
     if(del==nullptr) throw runtime_error("Could not find delimiter in line");
     lscan.do_scan(head,read_size);
     printer->print(lscan);
-    cbuf.advance_head(lscan.length());
+    cbuf->advance_head(lscan.length());
   }
   return;
+}
+
+
+unordered_map<string,size_t> keyed_fields(const Csv& csv,
+					  const string& key_column){
+  unordered_map<string,size_t> r;
+  vector<string> columns = csv.columns();
+  size_t key_col = find_idx(columns,key_column);
+  if(key_col == columns.size())
+    throw runtime_error("Key column not found in table");
+  
+  vector<vector<string>> fieldss = csv.fieldss();
+  for(size_t i=0;i<fieldss.size();i++){
+    const vector<string>& fields = fieldss[i];
+    if(key_col < fields.size()){
+      string key = fields[key_col];
+      r[key] = i;  
+    }
+  }
+  
+  return r;  
+} 
+
+void run_join(const string& csv_path_1,
+	      const string& csv_path_2,
+	      char delimiter_1,
+	      char delimiter_2,
+	      const string& key_column,
+	      size_t read_size,
+	      size_t buffer_size){
+  // Read csv_2
+  unique_ptr<Csv> csv_2 = Csv::create(create_circbuf(csv_path_2,
+						     read_size,
+						     buffer_size),
+				      delimiter_2);
+  vector<string> columns_2 = csv_2->columns();
+  // Get keys and line numbers
+  unordered_map<string,size_t> keyed_fields_2 = keyed_fields(*csv_2,key_column);
+
+  // Prepare buffers for reading csv_1
+  unique_ptr<Circbuf> cbuf = create_circbuf(csv_path_1,
+					    read_size,
+					    buffer_size);
+  Linescan lscan(delimiter_1, read_size);
+
+  // Read header of csv_1
+  lscan.do_scan_header(cbuf->head(), read_size);
+
+  // Get columns of csv_1
+  vector<string> columns_1;
+  for(size_t i=0;i<lscan.n_fields();i++)
+    columns_1.push_back(lscan.field_str(i));
+
+  // Determine common and specific columns
+  set<string> columns_set_1 = set<string>(columns_1.begin(),columns_1.end());
+  set<string> columns_set_2 = set<string>(columns_2.begin(),columns_2.end());
+  set<string> common_columns_set = intersection_set(columns_set_1,columns_set_2);
+  vector<string> specific_columns_2 = columns_2;
+  remove_from_vec(specific_columns_2, columns_set_1);
+
+  // Find indexes of specific columns
+  vector<size_t> specific_columns_2_idxs;
+  for(const string& c:specific_columns_2)
+    specific_columns_2_idxs.push_back(find_idx(columns_2,c));
+
+  // Initializa printers
+  auto printer_1 = Linescan_Field_Printer(
+					  make_unique<Field_Printer>(numbers(0,columns_1.size()),
+								     delimiter_1,
+								     false, false, false));
+  auto printer_2 = Field_Printer(specific_columns_2_idxs,delimiter_1,false,true,true);
+
+  // Find index of key column in csv_1
+  size_t key_col = find_idx(columns_1,key_column);
+  if(key_col == columns_1.size())
+    throw runtime_error("Key column not found in table");
+
+  // Print header
+  printer_1.print(lscan);
+  printer_2.print(columns_2);
+
+  // Advance to next line
+  cbuf->advance_head(lscan.length());
+
+  // Loop through lines
+  while(!cbuf->at_eof()){
+    char* head = cbuf->head();
+    lscan.do_scan(head,read_size);
+    if(key_col >= lscan.n_fields()) { // fewer fields than expected for key, i.e. key is empty
+      cbuf->advance_head(lscan.length());
+      continue;
+    }
+    string key = lscan.field_str(key_col);
+    if(key.size()==0){ // Key is empty
+      cbuf->advance_head(lscan.length());
+      continue;
+    }
+    if(!contains(keyed_fields_2,key)){ // Key not found in csv_2
+      cbuf->advance_head(lscan.length());
+      continue;
+    }
+    size_t match_line = keyed_fields_2[key];
+    const vector<string>& match_fields = csv_2->fieldss()[match_line];
+    printer_1.print(lscan);
+    printer_2.print(match_fields);
+    cbuf->advance_head(lscan.length());
+  }
+  
 }
 
 
@@ -267,6 +377,7 @@ int main(int argc, const char* argv[]){
     string delimiter_str = ",";
     string out_columns_s;
     bool complete_match = false;
+    string csv_path_2 = "";
 
     app.add_option("-d,--delimiter",delimiter_str,
 		   "Column delimiter (default '" + delimiter_str + "')");
@@ -294,6 +405,11 @@ int main(int argc, const char* argv[]){
 			  "Output columns, separated by ',' (default all columns)");
     cut_cmd->add_option("csv",csv_path,"CSV path");
 
+    auto join_cmd = app.add_subcommand("join");
+    join_cmd->add_option("-c,--column",columns_s,"Columns to match, separated by ','")->required();
+    join_cmd->add_option("csv",csv_path,"CSV path 1");
+    join_cmd->add_option("csv_2",csv_path_2,"CSV path 2");
+
     app.require_subcommand(1);
     CLI11_PARSE(app, argc, argv);
 
@@ -311,6 +427,15 @@ int main(int argc, const char* argv[]){
 		 out_columns, 0, read_size, buffer_size);
     } else if(cut_cmd->parsed()){
       run_cut(csv_path, delimiter, out_columns, read_size, buffer_size);
+    } else if(join_cmd->parsed()){
+      if(csv_path_2.empty()){
+	csv_path_2 = csv_path;
+	csv_path = "";
+      }
+      if(columns.size() != 1){
+	throw runtime_error("Need a single column to join");
+      }
+      run_join(csv_path,csv_path_2, delimiter, delimiter, columns[0], read_size, buffer_size);
     } else {
       throw runtime_error("Unknown subcommand");
     }
