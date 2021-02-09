@@ -315,7 +315,7 @@ void run_join(const string& csv_path_1,
   for(const string& c:specific_columns_2)
     specific_columns_2_idxs.push_back(find_idx(columns_2,c));
 
-  // Initializa printers
+  // Initialize printers
   auto printer_1 = Linescan_Field_Printer(
 					  make_unique<Field_Printer>(numbers(0,columns_1.size()),
 								     delimiter_1,
@@ -338,15 +338,15 @@ void run_join(const string& csv_path_1,
   while(!cbuf->at_eof()){
     char* head = cbuf->head();
     lscan.do_scan(head,read_size);
+    if(lscan.length() <= 1){ // Line is empty
+      cbuf->advance_head(lscan.length());
+      continue;
+    }
     if(key_col >= lscan.n_fields()) { // fewer fields than expected for key, i.e. key is empty
       cbuf->advance_head(lscan.length());
       continue;
     }
     string key = lscan.field_str(key_col);
-    if(key.size()==0){ // Key is empty
-      cbuf->advance_head(lscan.length());
-      continue;
-    }
     if(!contains(keyed_fields_2,key)){ // Key not found in csv_2
       cbuf->advance_head(lscan.length());
       continue;
