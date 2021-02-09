@@ -27,6 +27,20 @@ enum class Buffer_Matcher_Type
    LINE, MULTILINE
   };
 
+enum class Join_Mode
+  {
+   NATURAL, LEFT, RIGHT, FULL
+  };
+
+static const map<string,Join_Mode> JOIN_MODES =
+  {
+   {"natural",Join_Mode::NATURAL},
+   {"left",Join_Mode::LEFT},
+   {"right",Join_Mode::RIGHT},
+   {"full",Join_Mode::FULL}
+  };
+					       
+
 unique_ptr<Circbuf> create_circbuf(string csv_path, size_t read_size, size_t buffer_size){
   if(!csv_path.empty())
     return make_unique<Circbuf>(csv_path,read_size,buffer_size);
@@ -273,7 +287,8 @@ unordered_map<string,size_t> keyed_fields(const Csv& csv,
   return r;  
 } 
 
-void run_join(const string& csv_path_1,
+void run_join(Join_Mode join_mode,
+	      const string& csv_path_1,
 	      const string& csv_path_2,
 	      char delimiter_1,
 	      char delimiter_2,
@@ -286,6 +301,9 @@ void run_join(const string& csv_path_1,
 						     buffer_size),
 				      delimiter_2);
   vector<string> columns_2 = csv_2->columns();
+  vector<string> empty_line_2;
+  for(size_t i=0;i<columns_2.size();i++)
+    empty_line_2.push_back("");
   // Get keys and line numbers
   unordered_map<string,size_t> keyed_fields_2 = keyed_fields(*csv_2,key_column);
 
@@ -314,6 +332,11 @@ void run_join(const string& csv_path_1,
   vector<size_t> specific_columns_2_idxs;
   for(const string& c:specific_columns_2)
     specific_columns_2_idxs.push_back(find_idx(columns_2,c));
+  vector<size_t> columns_2_1_idxs;
+  for(const string& c:columns_1)
+    columns_2_1_idxs.push_back(find_idx(columns_2,c));
+
+  //cout << str_vector(columns_2_1_idxs) << endl;
 
   // Initialize printers
   auto printer_1 = Linescan_Field_Printer(
@@ -321,6 +344,8 @@ void run_join(const string& csv_path_1,
 								     delimiter_1,
 								     false, false, false));
   auto printer_2 = Field_Printer(specific_columns_2_idxs,delimiter_1,false,true,true);
+  auto printer_2_1 = Field_Printer(columns_2_1_idxs,delimiter_1,false,false,false);
+  printer_2_1.allow_out_of_bounds(true);
 
   // Find index of key column in csv_1
   size_t key_col = find_idx(columns_1,key_column);
@@ -334,6 +359,10 @@ void run_join(const string& csv_path_1,
   // Advance to next line
   cbuf->advance_head(lscan.length());
 
+  std::set<size_t> unused_line_idxs_2;
+  for(const auto& it:keyed_fields_2)
+    unused_line_idxs_2.insert(it.second);
+  
   // Loop through lines
   while(!cbuf->at_eof()){
     char* head = cbuf->head();
@@ -346,16 +375,35 @@ void run_join(const string& csv_path_1,
       cbuf->advance_head(lscan.length());
       continue;
     }
+
     string key = lscan.field_str(key_col);
-    if(!contains(keyed_fields_2,key)){ // Key not found in csv_2
-      cbuf->advance_head(lscan.length());
-      continue;
-    }
-    size_t match_line = keyed_fields_2[key];
-    const vector<string>& match_fields = csv_2->fieldss()[match_line];
-    printer_1.print(lscan);
-    printer_2.print(match_fields);
+    { // Start Block
+      unordered_map<string,size_t>::const_iterator it = keyed_fields_2.find(key);
+      if(it == keyed_fields_2.end()){ // Key not found in csv_2
+	if(join_mode == Join_Mode::LEFT || join_mode == Join_Mode::FULL){
+	  printer_1.print(lscan);
+	  printer_2.print(empty_line_2);
+	}
+      } else {
+	size_t match_line = it->second;
+	unused_line_idxs_2.erase(match_line);
+	const vector<string>& match_fields = csv_2->fieldss()[match_line];
+	printer_1.print(lscan);
+	printer_2.print(match_fields);
+      }
+    } // End Block
     cbuf->advance_head(lscan.length());
+  }
+
+  if(join_mode == Join_Mode::RIGHT || join_mode == Join_Mode::FULL){
+    for(size_t idx:unused_line_idxs_2){
+      vector<string> match_fields = csv_2->fieldss()[idx];
+      if(match_fields.size() == 1 && match_fields[0] == "") continue;
+      //cout << str_vector(match_fields) << endl;
+      //match_fields.push_back("X");
+      printer_2_1.print(match_fields);
+      printer_2.print(match_fields);
+    }
   }
   
 }
@@ -376,6 +424,7 @@ int main(int argc, const char* argv[]){
     string csv_path = "";
     string delimiter_str = ",";
     string out_columns_s;
+    string join_mode = "natural";
     bool complete_match = false;
     string csv_path_2 = "";
 
@@ -407,6 +456,7 @@ int main(int argc, const char* argv[]){
 
     auto join_cmd = app.add_subcommand("join");
     join_cmd->add_option("-c,--column",columns_s,"Columns to match, separated by ','")->required();
+    join_cmd->add_option("-m,--mode",join_mode,"Join mode (either one of 'natural,left,right,full'; default: 'natural')");
     join_cmd->add_option("csv",csv_path,"CSV path 1");
     join_cmd->add_option("csv_2",csv_path_2,"CSV path 2");
 
@@ -435,7 +485,11 @@ int main(int argc, const char* argv[]){
       if(columns.size() != 1){
 	throw runtime_error("Need a single column to join");
       }
-      run_join(csv_path,csv_path_2, delimiter, delimiter, columns[0], read_size, buffer_size);
+
+      map<string,Join_Mode>::const_iterator it = JOIN_MODES.find(join_mode);
+      if(it == JOIN_MODES.end()) throw runtime_error("Unknown join mode");
+      Join_Mode join_mode_parsed = it->second;
+      run_join(join_mode_parsed, csv_path,csv_path_2, delimiter, delimiter, columns[0], read_size, buffer_size);
     } else {
       throw runtime_error("Unknown subcommand");
     }

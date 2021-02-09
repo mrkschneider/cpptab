@@ -306,6 +306,7 @@ namespace csv {
     const std::vector<std::string>& columns() const { return *_columns; };
     const std::vector<std::vector<std::string>>& fieldss() const { return *_fieldss; };
 
+
   };
   
 
