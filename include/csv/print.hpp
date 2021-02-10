@@ -14,6 +14,7 @@
 #include <csv/constants.hpp>
 #include <csv/error.hpp>
 #include <csv/match.hpp>
+#include <csv/st.hpp>
 
 namespace csv {
 
@@ -43,18 +44,20 @@ namespace csv {
     const bool _crnl;
     const bool _nl;
     const bool _cont;
+    bool _allow_out_of_bounds;
     
   public:
     void print(const char* buf,
 	       const std::vector<size_t>& offsets) const;
     void print(const std::vector<std::string>& fields) const;
+    void allow_out_of_bounds(bool v) { _allow_out_of_bounds = v; };
     Field_Printer(std::vector<size_t> fields,
 		  char delimiter,
 		  bool crnl,
 		  bool nl,
 		  bool cont) :
       _fields {fields}, _delimiter {delimiter}, _crnl {crnl},
-      _nl {nl}, _cont {cont} {};
+      _nl {nl}, _cont {cont}, _allow_out_of_bounds {false} {};
   };
 
   class Linescan_Printer { // LCOV_EXCL_START

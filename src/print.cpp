@@ -1,6 +1,7 @@
 #include <csv/print.hpp>
 
 using namespace std;
+using namespace st;
 using namespace csv;
 
 
@@ -11,7 +12,8 @@ void csv::Field_Printer::print(const char* buf,
     if(_cont) putc(_delimiter,stdout);
     size_t fields_n = _fields.size() - 1;
     for(size_t i=0;i<fields_n;i++){
-      csv::print_field(buf, offsets, _fields[i]);
+      size_t field = _fields[i];
+      csv::print_field(buf, offsets, field);
       putc(_delimiter,stdout);
     }
     csv::print_field(buf, offsets, _fields[fields_n]);
@@ -26,17 +28,31 @@ void csv::Field_Printer::print(const char* buf,
 // LCOV_EXCL_END
 
 void csv::Field_Printer::print(const std::vector<std::string>& fields) const {
+  auto print = [this, &fields](size_t field_idx)
+	       {
+		 if(field_idx < fields.size()) {
+		   const string& field = fields[field_idx];
+		   csv::print(field.c_str(),field.length());
+		 } else if(_allow_out_of_bounds) {
+		   // Do nothing
+		 }
+		 else {
+		   throw std::runtime_error("Field print out of bounds");
+		 }
+	       };
+  
   if(_fields.size() > 0) {
     if(_cont) putc(_delimiter,stdout);
     size_t fields_n = _fields.size() - 1;
     for(size_t i=0;i<fields_n;i++){
-      const string& field = fields[_fields[i]];
-      csv::print(field.c_str(),field.length());
+      size_t field_idx = _fields[i];
+      print(field_idx);
       putc(_delimiter,stdout);
     }
-    const string& field = fields[_fields[fields_n]];
-    csv::print(field.c_str(),field.length());
+    size_t field_idx = _fields[fields_n];
+    print(field_idx);
   }
+
   if(_crnl){
     putc('\r',stdout);
   }
