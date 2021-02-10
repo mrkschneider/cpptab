@@ -16,6 +16,7 @@ using namespace st;
 using namespace csv;
 
 static const char ARG_DELIMITER = ',';
+static const string KEY_DELIMITER = ",";
 
 enum class Matcher_Type
   {
@@ -273,9 +274,22 @@ string multi_key(const vector<string>& fields,
     if(i >= fields.size())
       throw runtime_error("Key column not found in table");
     r.append(fields[i]);
-    r.append(",");
+    r.append(KEY_DELIMITER);
   }
   return r;
+}
+
+string multi_key(const csv::Linescan& lscan,
+		 const vector<size_t>& idxs){
+  string key;
+  for(size_t i:idxs){
+    if(i >= lscan.n_fields()) { // fewer fields than expected for key
+      throw runtime_error("Key field missing");
+    }
+    key.append(lscan.field_str(i));
+    key.append(KEY_DELIMITER);
+  }
+  return key;
 }
 
 vector<size_t> key_column_idxs(const vector<string>& columns,
@@ -387,14 +401,7 @@ void run_join(Join_Mode join_mode,
       continue;
     }
 
-    string key;
-    for(size_t key_col:key_cols){
-      if(key_col >= lscan.n_fields()) { // fewer fields than expected for key
-	throw runtime_error("Key field missing");
-      }
-      key.append(lscan.field_str(key_col));
-      key.append(",");
-    }
+    string key = multi_key(lscan, key_cols);
 
     { // Start Block
       unordered_map<string,size_t>::const_iterator it = keyed_fields_2.find(key);
