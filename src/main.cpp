@@ -266,22 +266,41 @@ void run_cut(const string& csv_path,
   return;
 }
 
+string multi_key(const vector<string>& fields,
+		 const vector<size_t>& idxs){
+  string r;
+  for(size_t i:idxs) {
+    if(i >= fields.size())
+      throw runtime_error("Key column not found in table");
+    r.append(fields[i]);
+    r.append(",");
+  }
+  return r;
+}
+
+vector<size_t> key_column_idxs(const vector<string>& columns,
+			       const vector<string>& key_columns){
+  vector<size_t> key_cols;
+  for(const string& key_column:key_columns){
+    size_t key_col = find_idx(columns,key_column);
+    if(key_col == columns.size())
+      throw runtime_error("Key column not found in table");
+    key_cols.push_back(key_col);
+  }
+  return key_cols;
+}
 
 unordered_map<string,size_t> keyed_fields(const Csv& csv,
-					  const string& key_column){
+					  const vector<string>& key_columns){
   unordered_map<string,size_t> r;
   vector<string> columns = csv.columns();
-  size_t key_col = find_idx(columns,key_column);
-  if(key_col == columns.size())
-    throw runtime_error("Key column not found in table");
-  
+  vector<size_t> key_cols = key_column_idxs(columns, key_columns);
   vector<vector<string>> fieldss = csv.fieldss();
   for(size_t i=0;i<fieldss.size();i++){
     const vector<string>& fields = fieldss[i];
-    if(key_col < fields.size()){
-      string key = fields[key_col];
-      r[key] = i;  
-    }
+    if(fields.size() == 1 && fields[0] == "") continue;
+    string key = multi_key(fields, key_cols);
+    r[key] = i;
   }
   
   return r;  
@@ -292,7 +311,7 @@ void run_join(Join_Mode join_mode,
 	      const string& csv_path_2,
 	      char delimiter_1,
 	      char delimiter_2,
-	      const string& key_column,
+	      const vector<string>& key_columns,
 	      size_t read_size,
 	      size_t buffer_size){
   // Read csv_2
@@ -305,7 +324,7 @@ void run_join(Join_Mode join_mode,
   for(size_t i=0;i<columns_2.size();i++)
     empty_line_2.push_back("");
   // Get keys and line numbers
-  unordered_map<string,size_t> keyed_fields_2 = keyed_fields(*csv_2,key_column);
+  unordered_map<string,size_t> keyed_fields_2 = keyed_fields(*csv_2,key_columns);
 
   // Prepare buffers for reading csv_1
   unique_ptr<Circbuf> cbuf = create_circbuf(csv_path_1,
@@ -336,8 +355,6 @@ void run_join(Join_Mode join_mode,
   for(const string& c:columns_1)
     columns_2_1_idxs.push_back(find_idx(columns_2,c));
 
-  //cout << str_vector(columns_2_1_idxs) << endl;
-
   // Initialize printers
   auto printer_1 = Linescan_Field_Printer(
 					  make_unique<Field_Printer>(numbers(0,columns_1.size()),
@@ -348,9 +365,7 @@ void run_join(Join_Mode join_mode,
   printer_2_1.allow_out_of_bounds(true);
 
   // Find index of key column in csv_1
-  size_t key_col = find_idx(columns_1,key_column);
-  if(key_col == columns_1.size())
-    throw runtime_error("Key column not found in table");
+  vector<size_t> key_cols = key_column_idxs(columns_1,key_columns);
 
   // Print header
   printer_1.print(lscan);
@@ -371,12 +386,16 @@ void run_join(Join_Mode join_mode,
       cbuf->advance_head(lscan.length());
       continue;
     }
-    if(key_col >= lscan.n_fields()) { // fewer fields than expected for key, i.e. key is empty
-      cbuf->advance_head(lscan.length());
-      continue;
+
+    string key;
+    for(size_t key_col:key_cols){
+      if(key_col >= lscan.n_fields()) { // fewer fields than expected for key
+	throw runtime_error("Key field missing");
+      }
+      key.append(lscan.field_str(key_col));
+      key.append(",");
     }
 
-    string key = lscan.field_str(key_col);
     { // Start Block
       unordered_map<string,size_t>::const_iterator it = keyed_fields_2.find(key);
       if(it == keyed_fields_2.end()){ // Key not found in csv_2
@@ -399,8 +418,6 @@ void run_join(Join_Mode join_mode,
     for(size_t idx:unused_line_idxs_2){
       vector<string> match_fields = csv_2->fieldss()[idx];
       if(match_fields.size() == 1 && match_fields[0] == "") continue;
-      //cout << str_vector(match_fields) << endl;
-      //match_fields.push_back("X");
       printer_2_1.print(match_fields);
       printer_2.print(match_fields);
     }
@@ -482,14 +499,11 @@ int main(int argc, const char* argv[]){
 	csv_path_2 = csv_path;
 	csv_path = "";
       }
-      if(columns.size() != 1){
-	throw runtime_error("Need a single column to join");
-      }
 
       map<string,Join_Mode>::const_iterator it = JOIN_MODES.find(join_mode);
       if(it == JOIN_MODES.end()) throw runtime_error("Unknown join mode");
       Join_Mode join_mode_parsed = it->second;
-      run_join(join_mode_parsed, csv_path,csv_path_2, delimiter, delimiter, columns[0], read_size, buffer_size);
+      run_join(join_mode_parsed, csv_path,csv_path_2, delimiter, delimiter, columns, read_size, buffer_size);
     } else {
       throw runtime_error("Unknown subcommand");
     }
